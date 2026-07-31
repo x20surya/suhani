@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Debugging Suhani</title>
+<style>
+  /* Suhani's own design tokens, lifted from webapp/src/index.css so this page
+     reads as part of the product rather than a generic doc. */
+  :root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.16 0.006 285);
+    --card: oklch(1 0 0);
+    --muted: oklch(0.968 0.003 286);
+    --muted-foreground: oklch(0.46 0.011 286);
+    --border: oklch(0.918 0.005 286);
+    --primary: oklch(0.52 0.176 355);
+    --primary-foreground: oklch(0.99 0.004 350);
+    --success: oklch(0.52 0.13 155);
+    --warning: oklch(0.55 0.13 75);
+    --destructive: oklch(0.55 0.21 27);
+    --code-bg: oklch(0.975 0.003 286);
+    --radius: 0.875rem;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: oklch(0.145 0.004 286);
+      --foreground: oklch(0.985 0 0);
+      --card: oklch(0.196 0.005 286);
+      --muted: oklch(0.24 0.006 286);
+      --muted-foreground: oklch(0.68 0.011 286);
+      --border: oklch(0.29 0.007 286);
+      --primary: oklch(0.7 0.19 356);
+      --primary-foreground: oklch(0.16 0.02 350);
+      --success: oklch(0.72 0.15 155);
+      --warning: oklch(0.78 0.14 80);
+      --destructive: oklch(0.7 0.19 25);
+      --code-bg: oklch(0.17 0.005 286);
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, li, td, th, h1, h2, h3, dd) { overflow-wrap: anywhere; }
+
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 3rem 1.25rem 6rem; }
+
+  h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); letter-spacing: -0.02em; margin: 0 0 .4rem; }
+  h2 {
+    font-size: 1.35rem; letter-spacing: -0.015em; margin: 3.25rem 0 .5rem;
+    padding-top: 1.75rem; border-top: 1px solid var(--border);
+  }
+  h3 { font-size: 1.02rem; letter-spacing: -0.01em; margin: 1.75rem 0 .5rem; }
+  .lede { color: var(--muted-foreground); font-size: 1.05rem; margin: 0 0 .5rem; }
+  p { margin: .6rem 0; }
+  code {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: .87em; background: var(--code-bg);
+    border: 1px solid var(--border); border-radius: .35rem; padding: .08em .34em;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: .9rem 1rem; overflow-x: auto; margin: .6rem 0;
+  }
+  pre code { background: none; border: 0; padding: 0; font-size: .84rem; line-height: 1.65; }
+  .cmt { color: var(--muted-foreground); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.15rem 1.25rem; margin: 1rem 0;
+  }
+  .grid { display: grid; gap: .85rem; }
+  @media (min-width: 46rem) { .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  .step {
+    display: grid; grid-template-columns: 2.2rem minmax(0, 1fr); gap: 0 .9rem;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 1.05rem 1.2rem; margin: .85rem 0; background: var(--card);
+  }
+  .step-n {
+    grid-row: span 2; width: 2.2rem; height: 2.2rem; border-radius: 999px;
+    background: var(--primary); color: var(--primary-foreground);
+    display: grid; place-items: center; font-weight: 650; font-size: .95rem;
+  }
+  .step h3 { margin: .15rem 0 .1rem; }
+  .step-body { grid-column: 2; }
+
+  .badge {
+    display: inline-block; font-size: .72rem; font-weight: 600; letter-spacing: .02em;
+    padding: .16rem .55rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--muted); color: var(--muted-foreground); vertical-align: middle;
+  }
+  .badge-ok   { color: var(--success);     border-color: color-mix(in oklch, var(--success) 40%, var(--border)); }
+  .badge-warn { color: var(--warning);     border-color: color-mix(in oklch, var(--warning) 40%, var(--border)); }
+  .badge-bad  { color: var(--destructive); border-color: color-mix(in oklch, var(--destructive) 40%, var(--border)); }
+  .badge-free { color: var(--success); border-color: color-mix(in oklch, var(--success) 40%, var(--border)); }
+
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: .7rem .85rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-foreground); font-weight: 600; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td code { white-space: nowrap; }
+
+  .callout {
+    border-left: 3px solid var(--primary); background: var(--muted);
+    border-radius: 0 var(--radius) var(--radius) 0; padding: .85rem 1.1rem; margin: 1rem 0;
+  }
+  .callout-bad { border-left-color: var(--destructive); }
+  .callout-warn { border-left-color: var(--warning); }
+  .callout p:first-child { margin-top: 0; }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .mermaid { text-align: center; margin: 1.25rem 0; }
+  ul, ol { padding-left: 1.15rem; margin: .55rem 0; }
+  li { margin: .3rem 0; }
+  .kicker { font-size: .78rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted-foreground); font-weight: 600; }
+  .sig { font-size: .85rem; color: var(--muted-foreground); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="kicker">सुहानी / silai bahi</p>
+<h1>How to debug this thing</h1>
+<p class="lede">
+  A ladder from cheapest check to most expensive. Climb it in order: each rung tells you which half of the
+  system to stop suspecting, so you never debug the voice pipeline when the problem is a stale build.
+</p>
+
+<div class="callout">
+  <p><strong>The one rule.</strong> Nine failures out of ten are one of three things: the agent worker isn't running,
+  you edited <code>webapp/</code> and forgot <code>.\dev.ps1 ui</code>, or the service worker is serving you an old bundle.
+  Steps 1, 3 and 8 rule out all three in about ninety seconds.</p>
+</div>
+
+<h2>The ladder</h2>
+
+<div class="mermaid">
+flowchart TD
+  A["Something is wrong"] --> B{"Step 1<br/>dev.ps1 test<br/>44 tests"}
+  B -- fails --> B1["Ledger logic broke.<br/>Backend only - stop here."]
+  B -- passes --> C{"Step 2<br/>dev.ps1 keys"}
+  C -- fails --> C1["Bad or missing key in .env.<br/>Nothing else can work."]
+  C -- passes --> D{"Step 3<br/>Is the page current?<br/>dev.ps1 ui"}
+  D -- stale --> D1["You forgot to rebuild.<br/>Most common failure."]
+  D -- current --> E{"Step 4<br/>dev.ps1 smoke<br/>brain, no audio"}
+  E -- fails --> E1["Brain or prompts.<br/>Voice is innocent."]
+  E -- passes --> F{"Step 5<br/>Pages + APIs<br/>200s?"}
+  F -- fails --> F1["FastAPI / static serving."]
+  F -- passes --> G{"Step 6<br/>probe_participant<br/>headless voice"}
+  G -- fails --> G1["Agent worker, STT/TTS,<br/>or LiveKit. Browser innocent."]
+  G -- passes --> H{"Step 7<br/>Browser voice"}
+  H -- fails --> H1["Frontend only:<br/>mic, autoplay, or React state."]
+  H -- passes --> I["Working. Step 8 for the phone."]
+</div>
+
+<h2>Step by step</h2>
+
+<div class="step">
+  <div class="step-n">1</div>
+  <div class="step-body">
+    <h3>Ledger tests <span class="badge badge-free">free</span> <span class="badge">no keys</span> <span class="badge">2 sec</span></h3>
+    <pre><code>.\dev.ps1 test</code></pre>
+    <p>44 tests over <code>silai/ledger.py</code>: fuzzy name matching, FIFO payment allocation, date resolution, order
+    search, idempotency guards. If these fail, the problem is pure backend logic and nothing above this rung matters.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-n">2</div>
+  <div class="step-body">
+    <h3>Keys <span class="badge badge-free">free</span> <span class="badge">zero spend</span></h3>
+    <pre><code>.\dev.ps1 keys</code></pre>
+    <p>Bounces auth against all three providers without spending anything: Anthropic <code>models.list</code>,
+    Sarvam auth, LiveKit <code>list_rooms</code>. Sarvam is the one you cannot skip - it drives brain, ears
+    <em>and</em> voice. Anthropic only matters if you set <code>BRAIN=claude</code>.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-n">3</div>
+  <div class="step-body">
+    <h3>Is the page you're looking at actually your code? <span class="badge badge-warn">most common trap</span></h3>
+    <p><code>web/</code> is <strong>build output</strong>. Editing <code>webapp/src/...</code> changes nothing that
+    FastAPI serves until you rebuild.</p>
+    <pre><code>.\dev.ps1 ui        <span class="cmt"># webapp/ -&gt; web/, then reload</span></code></pre>
+    <p>To confirm you're running the newest bundle, compare what the page loaded against what is on disk:</p>
+    <pre><code><span class="cmt"># in the browser console</span>
+[...document.querySelectorAll('script[src]')].map(s =&gt; s.src)
+
+<span class="cmt"># in the terminal</span>
+ls web/assets/</code></pre>
+    <p>If the hashes differ, you are debugging a ghost. Go to step 8.</p>
+    <p>While actively working on the UI, skip the rebuild loop entirely:</p>
+    <pre><code>.\dev.ps1 web       <span class="cmt"># terminal 1: API on :8080</span>
+.\dev.ps1 ui-dev    <span class="cmt"># terminal 2: Vite HMR on :5173, /api proxied to :8080</span></code></pre>
+    <p>Use <strong>:5173</strong> for iteration and <strong>:8080</strong> to verify what will actually ship.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-n">4</div>
+  <div class="step-body">
+    <h3>The brain, with no audio in the way <span class="badge">cheap</span></h3>
+    <pre><code>.\dev.ps1 smoke     <span class="cmt"># scripted Hindi order flow, throwaway DB</span>
+.\dev.ps1 chat      <span class="cmt"># free-form chat in the terminal</span></code></pre>
+    <p>Same brain, same tools, same ledger as the voice path - only STT and TTS are removed. If a wrong amount or a
+    wrong due date appears here, it is a <code>silai/prompts.py</code> or <code>silai/tools.py</code> problem and you
+    can stop thinking about voice. There is also a browser version at <code>/debug.html</code>.</p>
+    <p><code>smoke</code> sets <code>DB_PATH=data/smoke.db</code>, so it never touches the real ledger.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-n">5</div>
+  <div class="step-body">
+    <h3>Server and pages</h3>
+    <pre><code>.\dev.ps1 web</code></pre>
+    <p>Then check the surfaces. <code>/healthz</code> reports which keys are missing without exposing them:</p>
+    <pre><code>curl localhost:8080/healthz        <span class="cmt"># {"ok":true,"missing_keys":[]}</span>
+curl localhost:8080/api/orders     <span class="cmt"># ledger read</span>
+curl localhost:8080/api/token      <span class="cmt"># LiveKit JWT - 503 means keys missing</span></code></pre>
+    <p>Want data on screen? <code>.\dev.ps1 demo</code> seeds clients and orders. It refuses to run against a
+    non-empty ledger unless you pass <code>--force</code>. Point <code>DB_PATH</code> at a throwaway file first if
+    you care about the real one.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-n">6</div>
+  <div class="step-body">
+    <h3>Voice without a browser <span class="badge badge-ok">the decisive rung</span></h3>
+    <p>This is the highest-value tool in the repo and it is easy to forget. <code>silai/probe_participant.py</code>
+    joins the room exactly like the browser would, publishes speech-like audio, and counts audio frames coming back.</p>
+    <pre><code><span class="cmt"># terminal 1</span>
+.\dev.ps1 agent
+
+<span class="cmt"># terminal 2</span>
+.venv\Scripts\python -m silai.probe_participant silai-bahi</code></pre>
+    <p>A pass means the agent joined, heard audio, and spoke back. It splits the world cleanly in half:</p>
+    <ul>
+      <li><strong>Probe passes, browser silent</strong> - frontend problem. Mic permission, autoplay, or React state.</li>
+      <li><strong>Probe fails</strong> - agent worker, Sarvam STT/TTS, or LiveKit. The browser is innocent.</li>
+    </ul>
+    <p class="sig">Room name defaults to <code>probe-room</code> if you omit it; the app itself uses <code>silai-bahi</code>.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-n">7</div>
+  <div class="step-body">
+    <h3>The browser</h3>
+    <p>Both processes must be running - <strong>the web server alone is not enough</strong>, and a missing agent
+    worker is the single most common cause of "I pressed it and nothing happened".</p>
+    <pre><code>.\dev.ps1 web       <span class="cmt"># terminal 1</span>
+.\dev.ps1 agent     <span class="cmt"># terminal 2</span></code></pre>
+    <p>Open <code>localhost:8080</code>, press the aura. The caption is your instrument - it is wired to real state,
+    not guesses, so read it literally:</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Caption</th><th>What is actually true</th><th>Look at</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Connecting…</strong> stuck</td><td><code>/api/token</code> or the WebRTC connect failed</td><td>Network tab, server terminal</td></tr>
+          <tr><td><strong>Waking Suhani…</strong> then <strong>didn't answer</strong></td><td>Room joined, no agent arrived within 12s</td><td>Agent terminal - is it running?</td></tr>
+          <tr><td><strong>Listening</strong></td><td>Agent present and its own state says listening</td><td>Speak; expect <em>Thinking…</em></td></tr>
+          <tr><td><strong>Can't hear you</strong></td><td>Local mic track missing, muted or ended</td><td>Site mic permission; a call stealing the mic</td></tr>
+          <tr><td><strong>Sound is blocked</strong></td><td>Chrome refused autoplay</td><td>Press <em>Enable sound</em></td></tr>
+          <tr><td><strong>Network dropped…</strong></td><td>LiveKit reconnecting; overrides agent state deliberately</td><td>Wi-Fi</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <p><strong>Why the states are trustworthy.</strong> Network and microphone truth outrank whatever the agent last
+      reported, because no attribute updates arrive while the connection is down - a stale "Listening" would otherwise
+      freeze mid-lie. That logic is <code>describe()</code> in <code>webapp/src/components/VoiceScreen.tsx</code>.</p>
+    </div>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-n">8</div>
+  <div class="step-body">
+    <h3>When the browser is lying to you <span class="badge badge-bad">service worker</span></h3>
+    <p><code>web/sw.js</code> serves <code>/assets/*</code> and <code>/fonts/*</code> <strong>cache-first</strong>.
+    That is safe in principle - filenames are content-hashed, so new code means a new URL - but a stale
+    <code>index.html</code> can still pin you to an old bundle, and it fails silently on the one device that matters.</p>
+    <p>Full reset, in order:</p>
+    <ol>
+      <li>DevTools &rarr; Application &rarr; Service Workers &rarr; <strong>Unregister</strong></li>
+      <li>Application &rarr; Storage &rarr; <strong>Clear site data</strong></li>
+      <li>Hard reload (<code>Ctrl+Shift+R</code>)</li>
+    </ol>
+    <p>Or from the console:</p>
+    <pre><code>(await navigator.serviceWorker.getRegistrations()).forEach(r =&gt; r.unregister());
+(await caches.keys()).forEach(k =&gt; caches.delete(k));
+location.reload();</code></pre>
+    <p>Also close every other <code>localhost:8080</code> tab first. Multiple tabs each open their own room session.</p>
+  </div>
+</div>
+
+<div class="step">
+  <div class="step-n">9</div>
+  <div class="step-body">
+    <h3>On her phone</h3>
+    <pre><code>.\dev.ps1 tunnel    <span class="cmt"># cloudflared HTTPS URL</span></code></pre>
+    <p>The microphone requires HTTPS anywhere that isn't localhost, so the tunnel is mandatory for phone testing.</p>
+    <p>To get a real console from her handset: connect it by USB, enable USB debugging, then open
+    <code>chrome://inspect</code> on the laptop and inspect the tab. You get the full DevTools remotely - and because
+    the build ships <code>.map</code> files, stack traces resolve to real TypeScript, not minified soup.</p>
+    <p class="sig">This is the only way to see the aura at her real device pixel ratio, which is also the only place
+    the shader's resolution behaviour can be judged honestly.</p>
+  </div>
+</div>
+
+<h2>Where the evidence lives</h2>
+
+<div class="tbl-wrap">
+  <table>
+    <thead><tr><th>What</th><th>Where</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>Backend logs</td><td>the terminal</td><td><code>logging.basicConfig(INFO)</code> only - <strong>no file handler</strong></td></tr>
+      <tr><td>Older run logs</td><td><code>data/logs/</code></td><td>From runs started with redirected output. Historical, not live</td></tr>
+      <tr><td>Frontend errors</td><td>browser console</td><td>Source maps ship, so traces are readable</td></tr>
+      <tr><td>Which brain is live</td><td>agent startup line</td><td>logs <code>brain: sarvam-105b</code></td></tr>
+      <tr><td>Ledger truth</td><td><code>data/silai.db</code></td><td>The single source of truth; <code>/ledger</code> is a view of it</td></tr>
+      <tr><td>Backups</td><td><code>data/backups/</code></td><td>Daily, 14 kept, WAL-safe</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>To capture a session to a file instead of watching it scroll:</p>
+<pre><code>.venv\Scripts\python -m silai.agent dev *&gt;&amp;1 | Tee-Object data\logs\agent-today.log</code></pre>
+
+<h2>Known traps, already paid for</h2>
+
+<div class="grid grid-2">
+  <div class="card">
+    <p><span class="badge badge-bad">seen before</span></p>
+    <p><strong>Two servers on one port.</strong> A system Python and the venv Python both bound <code>:8080</code> once,
+    and requests landed on whichever won. If behaviour is impossible, check for duplicate processes before anything else.</p>
+  </div>
+  <div class="card">
+    <p><span class="badge badge-bad">seen before</span></p>
+    <p><strong>Duplicate identity storms.</strong> A stale tab retrying with the same identity once killed the agent's
+    publish path with a native panic. <code>/api/token</code> now mints <code>mom-&lt;hex&gt;</code> per connection, but
+    close spare tabs anyway.</p>
+  </div>
+  <div class="card">
+    <p><span class="badge badge-warn">by design</span></p>
+    <p><strong>Aura looks soft on desktop.</strong> The shader's drawing buffer stays at 300&times;150 and scales with
+    device pixel ratio. At dpr 1 it is upscaled and soft; on her phone (~2.6) it is fine. Do not "fix" it by resizing
+    the canvas externally - <code>iResolution</code> goes stale and the mapping breaks.</p>
+  </div>
+  <div class="card">
+    <p><span class="badge badge-warn">by design</span></p>
+    <p><strong>Devanagari type rules are load-bearing.</strong> The <code>:lang(hi)</code> block in
+    <code>webapp/src/index.css</code> pins <code>line-height: 1.75</code> and <code>letter-spacing: 0</code> against
+    Tailwind's Preflight. Remove it and matras clip and conjuncts split.</p>
+  </div>
+</div>
+
+<h2>Still unverified</h2>
+
+<div class="callout callout-bad">
+  <p><strong>A live voice conversation has never been run against this frontend.</strong> Everything up to the edge is
+  verified - token endpoint returns a valid JWT, all assets serve, the page loads with zero console errors - but the
+  React app has not yet held a real conversation. <strong>Step 6 then step 7 is the shortest path to closing that.</strong></p>
+</div>
+
+<div class="callout callout-warn">
+  <p><strong>The repo is still untracked.</strong> <code>git ls-files</code> returns one path: <code>.gitattributes</code>.
+  Every debugging session below is one <code>rm</code> away from being unrecoverable, and there is no diff to consult
+  when something that used to work stops working. This is the cheapest reliability fix available.</p>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.esm.min.mjs";
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const paint = document.createElement("canvas").getContext("2d");
+  function toRgba(color) {
+    paint.clearRect(0, 0, 1, 1);
+    paint.fillStyle = "#000";
+    paint.fillStyle = color;
+    paint.fillRect(0, 0, 1, 1);
+    return paint.getImageData(0, 0, 1, 1).data;
+  }
+  function compositeRgba(fg, bg) {
+    const fa = fg[3] / 255, ba = bg[3] / 255;
+    const a = fa + ba * (1 - fa);
+    if (a === 0) return [0, 0, 0, 0];
+    return [
+      (fg[0] * fa + bg[0] * ba * (1 - fa)) / a,
+      (fg[1] * fa + bg[1] * ba * (1 - fa)) / a,
+      (fg[2] * fa + bg[2] * ba * (1 - fa)) / a,
+      a * 255,
+    ];
+  }
+  function pageIsDark() {
+    const root = document.documentElement;
+    const rb = toRgba(getComputedStyle(root).backgroundColor);
+    const bb = document.body ? toRgba(getComputedStyle(document.body).backgroundColor) : [0, 0, 0, 0];
+    const [r, g, b, a] = compositeRgba(bb, rb);
+    if (a > 0) return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5;
+    return darkQuery.matches;
+  }
+  const diagrams = [...document.querySelectorAll(".mermaid")].map((el) => ({ el, src: el.textContent }));
+  let applied, rendering = false, queued = false;
+  function queueRender() { queued = true; if (!rendering) void render(); }
+  async function render() {
+    rendering = true;
+    try {
+      while (queued) {
+        queued = false;
+        const theme = pageIsDark() ? "dark" : "default";
+        if (theme === applied) continue;
+        mermaid.initialize({ startOnLoad: false, theme, securityLevel: "strict" });
+        for (const { el, src } of diagrams) { el.removeAttribute("data-processed"); el.textContent = src; }
+        try { await mermaid.run({ nodes: diagrams.map((d) => d.el) }); }
+        catch (error) { console.error("Mermaid render failed:", error); return; }
+        applied = theme;
+      }
+    } finally { rendering = false; if (queued) queueRender(); }
+  }
+  if (document.readyState === "complete") queueRender();
+  else window.addEventListener("load", queueRender, { once: true });
+  darkQuery.addEventListener("change", queueRender);
+</script>
+</div>
+</body>
+</html>

@@ -1,0 +1,43 @@
+# The build context is the whole repo (docker-compose sets context: ..), so
+# without this Docker uploads node_modules, the venv and the entire ledger
+# history to the daemon on every build. On a 1 GB VPS that alone can fail.
+
+# Node toolchain. web/ is COMMITTED BUILD OUTPUT and must NOT be ignored:
+# it is the only reason the server never needs Node installed.
+#
+# The whole webapp/ SOURCE tree is excluded: the Dockerfile only ever copies
+# requirements.txt, silai/ and web/, so the React sources are pure context
+# weight. Note that a bare `node_modules/` line would NOT match the nested
+# webapp/node_modules - .dockerignore patterns are matched from the context
+# root - hence the recursive form as well.
+webapp/
+**/node_modules
+**/.vite
+
+# Python local env and caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Runtime state. data/ is a bind-mounted volume in docker-compose; baking a
+# copy into the image would be shadowed at runtime anyway, and it carries the
+# live SQLite ledger plus backups.
+data/
+
+# Secrets. env_file loads ../.env from the host at run time; it must never be
+# baked into an image layer.
+.env
+
+# Repo and tooling noise
+.git/
+.gitignore
+.github/
+.claude/
+.lavish/
+*.log
+
+# Dev-only helpers that have no meaning inside the container
+dev.ps1
+tests/

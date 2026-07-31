@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suhani - debug chat</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: "Noto Sans Devanagari", system-ui, sans-serif; background: #fdf6f0; color: #3d2331;
+         display: flex; justify-content: center; min-height: 100dvh; }
+  main { width: 100%; max-width: 640px; display: flex; flex-direction: column; padding: 16px; gap: 12px; }
+  h1 { font-size: 1.2rem; color: #7c2d5d; }
+  #log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+  .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; line-height: 1.5; white-space: pre-wrap; }
+  .user { align-self: flex-end; background: #7c2d5d; color: #fff; border-bottom-right-radius: 4px; }
+  .bot { align-self: flex-start; background: #f3d9e6; border-bottom-left-radius: 4px; }
+  .bot.err { background: #fde2e2; }
+  form { display: flex; gap: 8px; }
+  input { flex: 1; padding: 12px; border: 2px solid #e2c2d2; border-radius: 12px; font: inherit; }
+  button { padding: 12px 20px; border: none; border-radius: 12px; background: #7c2d5d; color: #fff;
+           font: inherit; cursor: pointer; }
+  button:disabled { opacity: 0.5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Suhani - text debug (same brain, no audio)</h1>
+  <div id="log" lang="hi"></div>
+  <form id="f">
+    <!-- Placeholder stays Hindi on purpose: it is example input for a Hindi brain. -->
+    <input id="inp" lang="hi" autocomplete="off" placeholder="जैसे: सुनीता का ब्लाउज़ लिख लो, शुक्रवार तक, पाँच सौ का" autofocus>
+    <button id="send">Send</button>
+  </form>
+</main>
+<script>
+  const log = document.getElementById("log");
+  const form = document.getElementById("f");
+  const inp = document.getElementById("inp");
+  const send = document.getElementById("send");
+  let sessionId = null;
+
+  function add(text, cls) {
+    const div = document.createElement("div");
+    div.className = "msg " + cls;
+    div.textContent = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    return div;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const message = inp.value.trim();
+    if (!message) return;
+    add(message, "user");
+    inp.value = "";
+    send.disabled = true;
+    const pending = add("...", "bot");
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, session_id: sessionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || res.statusText);
+      sessionId = data.session_id;
+      pending.textContent = data.reply;
+    } catch (err) {
+      pending.textContent = "Error: " + err.message;
+      pending.classList.add("err");
+    } finally {
+      send.disabled = false;
+      inp.focus();
+    }
+  });
+</script>
+</body>
+</html>

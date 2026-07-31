@@ -1,0 +1,28 @@
+# Voice agent framework + plugins (Sarvam STT/TTS, Sarvam-105B brain via the
+# openai plugin, Anthropic LLM fallback, Silero VAD, turn detector)
+# Pinned EXACTLY, not ~=1.5. This runs unattended on a box nobody logs into,
+# and a rebuild months from now must not silently pull a new minor that
+# regresses the voice pipeline. Upgrading should be a deliberate, tested act.
+#
+# The `silero` and `turn-detector` extras are deliberately absent. VAD and
+# end-of-turn detection now come from livekit-local-inference, a CORE
+# dependency of livekit-agents, via inference.VAD() / inference.TurnDetector()
+# in agent.py. Those extras only added onnxruntime + transformers + tokenizers
+# + huggingface-hub, a 461 MB model download, and the separate inference
+# subprocess whose lost IPC pipe wedged the worker after every session.
+livekit-agents[sarvam,openai,anthropic]==1.6.7
+# LiveKit server SDK (access tokens for the PWA)
+livekit-api>=1.0
+# Sarvam-105B brain (OpenAI-compatible endpoint) for text chat + bake-offs
+openai>=1.0
+# Claude fallback brain (BRAIN=claude)
+anthropic>=0.116.0
+# Web server for PWA, token endpoint, debug chat, reminders
+fastapi>=0.115
+uvicorn[standard]>=0.30
+# Web push reminders (pulls py-vapid for key generation)
+pywebpush>=2.0
+# .env loading
+python-dotenv>=1.0
+# IANA timezone data (Windows has none built in; ZoneInfo needs this)
+tzdata>=2024.1

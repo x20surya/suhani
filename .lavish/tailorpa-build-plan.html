@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en" data-theme="luxury">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>सिलाई बही - Build Plan</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex, .layout-grid, .layout-flex) > *,
+  :where([style*="display: grid"], [style*="display:grid"], [style*="display: flex"], [style*="display:flex"]) > * {
+    min-width: 0;
+  }
+  :where(p, h1, h2, h3, h4, h5, h6, li, dd, blockquote, figcaption, td, th, .badge, .label) {
+    overflow-wrap: anywhere;
+  }
+  :where(img, svg, video, canvas, iframe) {
+    max-width: 100%;
+    height: auto;
+  }
+  .mermaid { display: flex; justify-content: center; overflow-x: auto; }
+</style>
+</head>
+<body class="bg-base-100 text-base-content">
+<main class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-10 space-y-12">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero bg-base-200 rounded-box">
+    <div class="hero-content w-full flex-col items-start gap-6 py-10">
+      <div>
+        <p class="text-sm uppercase tracking-widest opacity-60 mb-2">Build plan &middot; TailorPA</p>
+        <h1 class="text-4xl sm:text-5xl font-bold leading-tight">सिलाई बही <span class="opacity-50 font-normal">/ Silai Bahi</span></h1>
+        <p class="mt-4 max-w-2xl text-lg opacity-80">A real-time Hindi voice assistant for your mom's tailoring business. She taps one button, speaks, and it keeps her clients, orders, dues, and deadlines. I build all of it; your part is accounts, devices, and testing.</p>
+      </div>
+      <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full">
+        <div class="stat">
+          <div class="stat-title">App built</div>
+          <div class="stat-value text-2xl">Today</div>
+          <div class="stat-desc">this session; then testing days</div>
+        </div>
+        <div class="stat">
+          <div class="stat-title">Voice-to-voice target</div>
+          <div class="stat-value text-2xl">&lt; 2s</div>
+          <div class="stat-desc">first audio; instant ack on writes</div>
+        </div>
+        <div class="stat">
+          <div class="stat-title">Running cost</div>
+          <div class="stat-value text-2xl">&lt; ₹1,000/mo</div>
+          <div class="stat-desc">₹0-VPS option; ~₹400-800 realistic</div>
+        </div>
+        <div class="stat">
+          <div class="stat-title">Your part today</div>
+          <div class="stat-value text-2xl">3 keys</div>
+          <div class="stat-desc">~30-45 min; steps below</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GOAL / WHAT IT FEELS LIKE ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">What we are building</h2>
+    <p class="opacity-80 max-w-3xl">Today the repo is empty and all decisions are locked from research: real-time conversational voice (not voice notes), delivered as a PWA she installs once from a link. The ledger is the product; voice is the interface. This is the target experience:</p>
+    <div class="grid gap-6 md:grid-cols-2">
+      <div class="card card-border bg-base-200">
+        <div class="card-body">
+          <h3 class="card-title text-base">Adding an order</h3>
+          <div class="chat chat-start">
+            <div class="chat-bubble">सुनीता का ब्लाउज़ लिख लो, शुक्रवार को देना है, पाँच सौ रुपये</div>
+          </div>
+          <div class="chat chat-end">
+            <div class="chat-bubble chat-bubble-primary">ठीक है - सुनीता जी का ब्लाउज़, शुक्रवार 1 अगस्त तक, ₹500. लिख दूँ?</div>
+          </div>
+          <div class="chat chat-start">
+            <div class="chat-bubble">हाँ</div>
+          </div>
+          <div class="chat chat-end">
+            <div class="chat-bubble chat-bubble-primary">लिख दिया. सुनीता जी का पुराना ₹200 भी बाकी है.</div>
+          </div>
+        </div>
+      </div>
+      <div class="card card-border bg-base-200">
+        <div class="card-body">
+          <h3 class="card-title text-base">Morning check + interruption</h3>
+          <div class="chat chat-start">
+            <div class="chat-bubble">आज क्या देना है?</div>
+          </div>
+          <div class="chat chat-end">
+            <div class="chat-bubble chat-bubble-primary">आज दो काम हैं - मीना आंटी की साड़ी का फॉल-पीको, और&hellip;</div>
+          </div>
+          <div class="chat chat-start">
+            <div class="chat-bubble">रुको, मीना आंटी वाला हो गया <span class="badge badge-soft badge-accent badge-sm align-middle">barge-in</span></div>
+          </div>
+          <div class="chat chat-end">
+            <div class="chat-bubble chat-bubble-primary">अच्छा, उसे पूरा कर दिया. पैसे मिल गए? ₹150 थे.</div>
+          </div>
+          <p class="text-sm opacity-60 mt-2">She can talk over it and it stops mid-sentence, corrects the ledger, and follows up. Plus: a morning push notification of what is due, and read-back confirmation before anything is saved.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STACK ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">The stack - chosen for latency and Hindi quality</h2>
+    <p class="opacity-80 max-w-3xl">Every choice below optimizes the same two things: lowest achievable voice-to-voice latency for one user in India, and the most natural Hindi in both directions. Dev cost was not a factor.</p>
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="card-title text-base">Voice framework</h3>
+            <span class="badge badge-primary badge-soft">LiveKit Agents</span>
+          </div>
+          <p class="text-sm opacity-80">Python agent on our VPS + <strong>LiveKit Cloud (Mumbai edge)</strong> for WebRTC. Chosen over Pipecat because managed media edge handles the messy real world: flaky mobile data, reconnects, NAT/TURN, jitter - exactly what a non-technical user on an Indian network hits. First-party Sarvam plugins and a multilingual semantic turn detector included. Free tier covers one user.</p>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="card-title text-base">Ears</h3>
+            <span class="badge badge-primary badge-soft">Saaras v3</span>
+          </div>
+          <p class="text-sm opacity-80">Sarvam's streaming STT with the dedicated <strong>Hinglish code-mix mode</strong>. Trained on 1M+ hours of Indian audio; ~19% WER on IndicVoices, beating global engines on Indic speech. Partials stream at ~200ms. ₹30/hour.</p>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="card-title text-base">Voice</h3>
+            <span class="badge badge-primary badge-soft">Bulbul v3</span>
+          </div>
+          <p class="text-sm opacity-80">Winner of a 20,000-vote blind test for Hindi naturalness. Streams sentence-by-sentence so she hears the reply while the rest generates. Handles Hinglish + currency amounts natively. ₹30 per 10K characters.</p>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="card-title text-base">Brain</h3>
+            <span class="badge badge-primary badge-soft">Claude Sonnet 5</span>
+          </div>
+          <p class="text-sm opacity-80">Tool-calling agent loop with adaptive thinking at low effort for the voice path - the best first-token latency at near-Opus tool reliability. Stable, prompt-cached system prefix (0.1x input price). One config line swaps to Opus 5 or Haiku 4.5 if testing says otherwise.</p>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="card-title text-base">Backend + ledger</h3>
+            <span class="badge badge-primary badge-soft">Python + SQLite</span>
+          </div>
+          <p class="text-sm opacity-80">One Python 3.12 service: the LiveKit agent worker and the ledger live in the same process, so tools are <strong>in-process function calls - zero HTTP hop, sub-millisecond</strong>. SQLite (one user, zero ops) with Litestream streaming every change to object storage for continuous backup.</p>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="card-title text-base">Her app</h3>
+            <span class="badge badge-primary badge-soft">No-build PWA</span>
+          </div>
+          <p class="text-sm opacity-80">Plain HTML/JS PWA with the LiveKit JS SDK - no build toolchain, so it ships today and deploys as static files. One big talk button, Devanagari UI, installable from a link to her Android home screen, web push for reminders. Android + home WiFi (your answers) is the PWA happy path.</p>
+        </div>
+      </div>
+    </div>
+    <div role="alert" class="alert alert-soft">
+      <span><strong>Deliberately kept swappable:</strong> LiveKit makes every component pluggable. If real-device testing disappoints, the fallbacks are pre-researched: OpenAI Realtime (speech-to-speech, sub-second, but foreign-accented Hindi), Gemini Live (~$0.02/min), ElevenLabs Agents (managed, ~$22/mo). The ledger and tools we build work unchanged with all of them.</span>
+    </div>
+  </section>
+
+  <!-- ============ ARCHITECTURE ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">How a sentence flows through the system</h2>
+    <div class="card card-border bg-base-100">
+      <div class="card-body">
+        <pre class="mermaid">
+flowchart TD
+  phone["&#128241; PWA on her phone<br/>one button, Hindi UI, web push"]
+  lk["LiveKit Cloud - Mumbai edge<br/>WebRTC media, reconnects, barge-in transport"]
+  phone <-->|"opus audio, ~30-80ms"| lk
+  lk <--> vad
+  subgraph worker["Python agent worker + ledger API - one process, Mumbai VPS"]
+    vad["VAD + semantic turn detection<br/>'is she done or just pausing?'"]
+    stt["Saaras v3 STT<br/>streaming, Hinglish codemix"]
+    brain["Claude Sonnet 5<br/>tool loop, prompt-cached, low effort"]
+    tts["Bulbul v3 TTS<br/>sentence-streamed Hindi"]
+    ledger[("SQLite ledger<br/>clients, orders, payments<br/>+ Litestream backup")]
+    sched["Reminder scheduler<br/>daily briefing + due-date push"]
+    vad --> stt --> brain --> tts
+    brain <-->|"in-process tool calls"| ledger
+    ledger --> sched
+  end
+  tts --> lk
+  sched -.->|"web push: 'सुनीता का ब्लाउज़ कल देना है'"| phone
+        </pre>
+        <p class="text-sm opacity-60">Everything except Claude sits in Mumbai. The Claude API is the one far network hop (~250ms to US), absorbed inside the model's thinking time.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LATENCY ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">Latency engineering - the actual budget</h2>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra">
+        <thead>
+          <tr><th>Stage</th><th>Budget</th><th>How we keep it there</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Mic to server (WebRTC)</td><td class="whitespace-nowrap">30-80ms</td><td>LiveKit Mumbai edge, opus codec</td></tr>
+          <tr><td>End-of-turn detection</td><td class="whitespace-nowrap">300-700ms</td><td>VAD + semantic turn model; tuned so she is not cut off mid-order</td></tr>
+          <tr><td>Final transcript</td><td class="whitespace-nowrap">100-200ms</td><td>Saaras streams partials during speech; finalize is incremental</td></tr>
+          <tr><td>Claude first token</td><td class="whitespace-nowrap">600-1,200ms</td><td>Prompt caching, short outputs, low effort, small stable tool set</td></tr>
+          <tr><td>First audio from TTS</td><td class="whitespace-nowrap">150-250ms</td><td>Bulbul streaming, sentence-level chunking</td></tr>
+          <tr class="font-semibold"><td>Simple turn, voice-to-voice</td><td class="whitespace-nowrap">~1.5-2.0s</td><td>Phone-call rhythm; humans read this as a natural pause</td></tr>
+          <tr class="font-semibold"><td>Ledger-writing turn</td><td class="whitespace-nowrap">~2.5-4s total</td><td>But she hears "हाँ, लिखती हूँ&hellip;" within ~1s - never dead air</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid gap-4 md:grid-cols-3">
+      <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Instant acknowledgment</h3><p class="text-sm opacity-70">Canned Hindi fillers play the moment a tool call starts. A 3-second write feels like talking to someone jotting in a notebook.</p></div></div>
+      <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Interruption handling</h3><p class="text-sm opacity-70">Barge-in built into LiveKit: she speaks, playback cancels in ~100-200ms, generation aborts. Threshold tuned (~300ms sustained speech) so the pressure cooker does not pause the agent.</p></div></div>
+      <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Measured, not hoped</h3><p class="text-sm opacity-70">Per-stage latency instrumentation from day one. We tune against real numbers from her phone and network, and only worry if first-audio exceeds ~2.5s.</p></div></div>
+    </div>
+  </section>
+
+  <!-- ============ BRAIN DESIGN ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">The brain: tools and behaviors</h2>
+    <p class="opacity-80 max-w-3xl">Built and tested as a text chat first (days 1-3), then the voice layer wraps it. The agent asks follow-up questions instead of saving blanks, and reads back before every write.</p>
+    <div class="grid gap-6 lg:grid-cols-2">
+      <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+        <table class="table table-sm">
+          <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>find_client</code></td><td><strong>Fuzzy + transliteration-aware match</strong> against her client list. STT will mangle names; the ledger never trusts a raw transcript. Names stored in Devanagari with roman aliases.</td></tr>
+            <tr><td><code>add_client</code></td><td>New client, only after find_client misses and she confirms it is a new person</td></tr>
+            <tr><td><code>add_order</code></td><td>Garment, client, due date, price, advance taken. Missing fields trigger a follow-up question, not a blank</td></tr>
+            <tr><td><code>orders_due</code></td><td>"आज / कल / इस हफ़्ते क्या देना है?" - by date range</td></tr>
+            <tr><td><code>check_dues</code></td><td>Who owes money, how much, since when</td></tr>
+            <tr><td><code>mark_paid</code> / <code>update_order</code></td><td>Payments (full/partial), completion, date changes, price corrections</td></tr>
+            <tr><td><code>daily_briefing</code></td><td>Morning summary: due today, overdue, money pending. Also powers the push notification</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="space-y-3">
+        <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Hindi persona, short replies</h3><p class="text-sm opacity-70">Warm, respectful, brief - one or two sentences, numbers spoken naturally ("पाँच सौ", not "500.00"). Written for TTS, not for reading.</p></div></div>
+        <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Confirm before writing</h3><p class="text-sm opacity-70">Every ledger write is read back first. This doubles as graceful recovery when STT misheard a name or amount.</p></div></div>
+        <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Tailoring glossary</h3><p class="text-sm opacity-70">Blouse, fall-pico, astar, picot, kurti&hellip; seeded into the prompt and matched fuzzily, growing from her real transcripts in week 3.</p></div></div>
+        <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Prompt-cache discipline</h3><p class="text-sm opacity-70">Frozen system prompt and tool list first, volatile context (today's date, session state) after the cache breakpoint. This is what keeps Claude fast and cheap.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TIMELINE ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">Timeline - compressed: built today, tested this week</h2>
+    <p class="opacity-80 max-w-3xl">Per your request: the entire app gets written in today's session. To make that possible with zero hosting friction, today runs <strong>locally on your PC</strong> (with a free HTTPS tunnel for phone testing); the move to a ₹0/cheap server happens during testing days. Honest caveat: "built today" means the code is complete and runnable today - endpointing thresholds, echo tuning, and outage polish still need the real-world testing days, because they can only be tuned against real audio from real phones.</p>
+    <ul class="timeline timeline-vertical timeline-snap-icon max-md:timeline-compact">
+      <li>
+        <div class="timeline-middle"><span class="badge badge-primary badge-sm">1</span></div>
+        <div class="timeline-start md:text-end"><time class="font-mono text-sm opacity-60">Today - now</time><div class="font-semibold">I build the whole app</div></div>
+        <div class="timeline-end timeline-box mb-6">
+          <p class="text-sm"><strong>Me, this session:</strong> repo scaffold, SQLite ledger + fuzzy name matching + tests, Claude tool-calling brain (text debug chat included), LiveKit voice agent with Saaras v3 codemix + Bulbul v3 + barge-in, the PWA (talk button, Hindi UI, push), <code>.env.example</code> templates, run scripts, deploy files.</p>
+          <p class="text-sm mt-1"><strong>You, in parallel (~30-45 min):</strong> get the 3 keys in the "Get your keys" section below and paste them into <code>.env</code>. Nothing else blocks the smoke test.</p>
+        </div>
+        <hr/>
+      </li>
+      <li>
+        <hr/>
+        <div class="timeline-middle"><span class="badge badge-primary badge-sm">2</span></div>
+        <div class="timeline-start md:text-end"><time class="font-mono text-sm opacity-60">Today - after keys</time><div class="font-semibold">First conversation</div></div>
+        <div class="timeline-end timeline-box mb-6">
+          <p class="text-sm">Run it on your PC: text-chat smoke test first (break it with wrong names and missing prices), then the first Hindi voice conversation in the browser. I fix whatever the first real run surfaces - plugin API drift is expected and quick to fix. Free HTTPS tunnel gets it onto your Android for a real phone test the same day.</p>
+        </div>
+        <hr/>
+      </li>
+      <li>
+        <hr/>
+        <div class="timeline-middle"><span class="badge badge-primary badge-sm">3</span></div>
+        <div class="timeline-start md:text-end"><time class="font-mono text-sm opacity-60">Day 2-3</time><div class="font-semibold">Testing + go live</div></div>
+        <div class="timeline-end timeline-box mb-6">
+          <p class="text-sm">You test on Android over home WiFi; we read real latency numbers and tune endpointing. Voice demo for mom: she picks from the Bulbul shortlist (default <em>neha</em>; alternates <em>pooja</em>, <em>shreya</em> - one env var to change). Meanwhile the app moves from your PC to the ₹0 server (Oracle free tier, or ~₹530 DigitalOcean fallback) with HTTPS + install link.</p>
+        </div>
+        <hr/>
+      </li>
+      <li>
+        <hr/>
+        <div class="timeline-middle"><span class="badge badge-primary badge-sm">4</span></div>
+        <div class="timeline-start md:text-end"><time class="font-mono text-sm opacity-60">Day 4-5</time><div class="font-semibold">Mom's first sessions</div></div>
+        <div class="timeline-end timeline-box mb-6">
+          <p class="text-sm">Supervised sessions on <em>her</em> phone in <em>her</em> room - speakerphone echo, background noise, her speaking rhythm. These sessions set the interruption and end-of-turn thresholds. Push reminder verified with a real order due tomorrow.</p>
+        </div>
+        <hr/>
+      </li>
+      <li>
+        <hr/>
+        <div class="timeline-middle"><span class="badge badge-primary badge-sm">5</span></div>
+        <div class="timeline-start md:text-end"><time class="font-mono text-sm opacity-60">Week 2</time><div class="font-semibold">Real use, tuning</div></div>
+        <div class="timeline-end timeline-box mb-6">
+          <p class="text-sm">She runs her actual week on it. I review transcripts (with her consent), grow the name-alias list and tailoring glossary, tune reply length and reminder timing. Exit criteria: a full week of orders entered by voice with zero manual corrections from you.</p>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <!-- ============ COLLABORATION ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">How we work together</h2>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">My side</h3>
+          <ul class="list-disc list-inside text-sm space-y-1 opacity-80">
+            <li>All code, tests, and deploys - you never write or run code</li>
+            <li>Each session: I state what I am building, build it, deploy it, and end with exactly what you should test</li>
+            <li>Latency and error dashboards so decisions come from data</li>
+            <li>Memory of every decision persists across our sessions</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Your side (~4 hrs total)</h3>
+          <ul class="list-disc list-inside text-sm space-y-1 opacity-80">
+            <li><strong>Today:</strong> 3 API keys into <code>.env</code> (~30-45 min, steps below)</li>
+            <li><strong>Per checkpoint:</strong> 15-30 min testing on a real phone; send me what felt wrong - a voice note of the bad exchange is perfect feedback</li>
+            <li><strong>Hindi judgment:</strong> you are the reviewer for tone, phrasing, and whether the voice sounds right</li>
+            <li><strong>Mom sessions:</strong> sit with her for the first ones; her comfort decides the defaults</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div role="alert" class="alert alert-info alert-soft">
+      <span>The cadence is simply: open a session, say "continue the plan" (I keep state in memory), test the checkpoint when I hand it over. Nothing blocks on you except day 0 keys and device tests.</span>
+    </div>
+  </section>
+
+  <!-- ============ RISKS ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">Risks and their prepared answers</h2>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra">
+        <thead><tr><th>Risk</th><th>Likelihood</th><th>Prepared answer</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Sarvam outage (history: ~monthly, median 2.5h)</td>
+            <td><span class="badge badge-soft badge-warning">Medium</span></td>
+            <td>Timeouts + retries + a graceful Hindi "थोड़ी देर बाद कोशिश करें" line instead of dead air; STT/TTS provider swappable via config from day one</td>
+          </tr>
+          <tr>
+            <td>Real-world latency worse than budget on her network</td>
+            <td><span class="badge badge-soft badge-warning">Medium</span></td>
+            <td>Measured per-stage from day 4; levers in order: endpointing, effort/model (Haiku), then swap voice layer to OpenAI Realtime or Gemini Live - ledger unchanged</td>
+          </tr>
+          <tr>
+            <td>Names/terms misheard (the known hard problem of Indic STT)</td>
+            <td><span class="badge badge-soft badge-error">High, by design</span></td>
+            <td>Never trust raw transcripts: fuzzy match against her client list, read-back confirmation, alias list + glossary that grows weekly from real transcripts</td>
+          </tr>
+          <tr>
+            <td>Speakerphone echo / household noise triggering false barge-in</td>
+            <td><span class="badge badge-soft badge-warning">Medium</span></td>
+            <td>Browser echo cancellation + noise suppression + tuned interruption threshold; day 10-12 is dedicated to testing this on her device in her room</td>
+          </tr>
+          <tr>
+            <td>She pauses mid-order and gets cut off</td>
+            <td><span class="badge badge-soft badge-warning">Medium</span></td>
+            <td>Semantic turn detection + generous end-of-turn silence; confirmation step catches any premature cut gracefully</td>
+          </tr>
+          <tr>
+            <td>Adoption - she does not take to it</td>
+            <td><span class="badge badge-soft badge-info">Low-medium</span></td>
+            <td>One button, zero menus, supervised first week, and the daily briefing push gives value even on days she does not open it. Worst case the ledger + brain survive any interface change</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ ANSWERS LOCKED ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">Your answers - locked in</h2>
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Phone: Android</h3><p class="text-sm opacity-70">PWA happy path - install from link, full mic support. Send me the model name whenever you spot it.</p></div></div>
+      <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Network: home WiFi</h3><p class="text-sm opacity-70">Stable broadband means standard audio settings; reconnect logic stays but will rarely fire.</p></div></div>
+      <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Voice: mom picks</h3><p class="text-sm opacity-70">Shortlist at the demo: <em>neha</em> (default), <em>pooja</em>, <em>shreya</em> - Bulbul v3 female Hindi voices, switchable with one env var.</p></div></div>
+      <div class="card bg-base-200"><div class="card-body py-4"><h3 class="font-semibold text-sm">Budget: under ₹1,000/mo</h3><p class="text-sm opacity-70">Plan trimmed: ₹0 VPS (Oracle free tier) or ~₹530 droplet fallback + ~₹80 domain + ~₹300-400 APIs = <strong>~₹400-1,000/mo</strong>. Today runs free on your PC.</p></div></div>
+    </div>
+  </section>
+
+  <!-- ============ GET YOUR KEYS ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">Get your keys - your only job today (~30-45 min)</h2>
+    <p class="opacity-80 max-w-3xl">Three services, all self-serve. I create a <code>.env</code> template in the repo with these exact variable names and a matching comment for each; you paste values in. Nothing here needs a company or verification.</p>
+    <div class="space-y-3">
+
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="card-title text-base">1. Anthropic (the brain)</h3>
+            <span class="badge badge-soft">~10 min &middot; needs ~$5 credit</span>
+          </div>
+          <ol class="list-decimal list-inside text-sm space-y-1 opacity-80">
+            <li>Go to <strong>platform.claude.com</strong> and sign in (Google works)</li>
+            <li>Billing: add the minimum credit (~$5 - lasts weeks at our usage)</li>
+            <li>API Keys &rarr; Create Key &rarr; name it <code>silai-bahi</code> &rarr; copy it immediately (shown once)</li>
+            <li>Paste into <code>.env</code> as <code>ANTHROPIC_API_KEY=sk-ant-...</code></li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="card-title text-base">2. Sarvam (ears + voice)</h3>
+            <span class="badge badge-soft">~5 min &middot; free credits on signup</span>
+          </div>
+          <ol class="list-decimal list-inside text-sm space-y-1 opacity-80">
+            <li>Go to <strong>dashboard.sarvam.ai</strong> &rarr; sign up (email or Google)</li>
+            <li>Open <strong>Key Management</strong> (dashboard.sarvam.ai/key-management) &rarr; create an API key</li>
+            <li>Paste into <code>.env</code> as <code>SARVAM_API_KEY=...</code></li>
+            <li>Signup credits cover all of our testing; no card needed yet</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="card-title text-base">3. LiveKit Cloud (the call itself)</h3>
+            <span class="badge badge-soft">~10 min &middot; free tier, no card</span>
+          </div>
+          <ol class="list-decimal list-inside text-sm space-y-1 opacity-80">
+            <li>Go to <strong>cloud.livekit.io</strong> &rarr; sign up (GitHub or Google)</li>
+            <li>Create a project named <code>silai-bahi</code> (pick the India/closest region if asked)</li>
+            <li>Settings &rarr; <strong>API Keys</strong> &rarr; create a key; you get three values</li>
+            <li>Paste all three into <code>.env</code>: <code>LIVEKIT_URL=wss://...livekit.cloud</code>, <code>LIVEKIT_API_KEY=API...</code>, <code>LIVEKIT_API_SECRET=...</code></li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="card-title text-base">Later this week (not today): hosting</h3>
+            <span class="badge badge-soft badge-info">₹0 target</span>
+          </div>
+          <p class="text-sm opacity-80"><strong>Option A - Oracle Cloud Always Free (₹0/mo):</strong> oracle.com/cloud/free &rarr; sign up with home region <em>India West (Mumbai)</em>; a card is required for identity verification but is not charged. <strong>Option B - DigitalOcean Bangalore ($6 &asymp; ₹530/mo):</strong> zero friction, 5 minutes. Domain: a .in from any registrar (~₹300-800/yr) or a free DuckDNS subdomain to start. VAPID push keys and everything else: I generate, no signups.</p>
+          <div role="alert" class="alert alert-soft mt-2">
+            <span class="text-sm"><strong>Does ₹0 compromise performance? No.</strong> The heavy compute (Saaras, Bulbul, Claude, LiveKit media) all runs on those services' own infrastructure - our box only orchestrates audio streams, runs two tiny local models (VAD + turn detection), and reads SQLite. The free Oracle ARM shape is actually the <em>strongest</em> hardware on the table (up to 4 cores / 24GB RAM vs 1 core / 1GB on the ₹530 droplet) and sits in the same Mumbai region, so latency is identical. The real caveats are policy, not speed: free ARM capacity is sometimes waitlisted at signup, and Oracle reclaims <em>idle</em> free VMs - ours is always-on, and switching the account to pay-as-you-go mode (still ₹0 within free limits) removes that policy entirely.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="opacity-50 text-sm pb-8">
+    <p>सिलाई बही build plan &middot; 28 July 2026 &middot; Decisions grounded in the July 2026 voice-stack research (saved in project memory). Annotate anything above - every card, row, and diagram node is a valid target.</p>
+  </footer>
+
+</main>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.esm.min.mjs";
+
+  // Render Mermaid in a theme that matches the artifact page, and re-render when
+  // the viewer flips the page theme - Mermaid never restyles an already-rendered
+  // SVG on its own, so a fixed theme clashes in either light or dark mode.
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+  // Normalize any CSS color the browser produces (rgb, oklch, hsl, named, ...)
+  // to [r, g, b, a] bytes via a 1x1 canvas, so parsing never breaks on modern
+  // color syntaxes like DaisyUI's oklch() values.
+  const paint = document.createElement("canvas").getContext("2d");
+  function toRgba(color) {
+    paint.clearRect(0, 0, 1, 1);
+    paint.fillStyle = "#000";
+    paint.fillStyle = color;
+    paint.fillRect(0, 0, 1, 1);
+    return paint.getImageData(0, 0, 1, 1).data;
+  }
+
+  function compositeRgba(foreground, background) {
+    const foregroundAlpha = foreground[3] / 255;
+    const backgroundAlpha = background[3] / 255;
+    const alpha = foregroundAlpha + backgroundAlpha * (1 - foregroundAlpha);
+    if (alpha === 0) return [0, 0, 0, 0];
+    return [
+      (foreground[0] * foregroundAlpha + background[0] * backgroundAlpha * (1 - foregroundAlpha)) / alpha,
+      (foreground[1] * foregroundAlpha + background[1] * backgroundAlpha * (1 - foregroundAlpha)) / alpha,
+      (foreground[2] * foregroundAlpha + background[2] * backgroundAlpha * (1 - foregroundAlpha)) / alpha,
+      alpha * 255,
+    ];
+  }
+
+  function pageIsDark() {
+    // Trust the actually-rendered page background so this works with any theming
+    // mechanism: prefers-color-scheme, a data-theme attribute, or plain CSS.
+    const root = document.documentElement;
+    const rootBackground = toRgba(getComputedStyle(root).backgroundColor);
+    const bodyBackground = document.body ? toRgba(getComputedStyle(document.body).backgroundColor) : [0, 0, 0, 0];
+    const [r, g, b, a] = compositeRgba(bodyBackground, rootBackground);
+    if (a > 0) {
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5;
+    }
+    const colorScheme = getComputedStyle(root).colorScheme;
+    if (colorScheme.includes("dark") && !colorScheme.includes("light")) return true;
+    if (colorScheme.includes("light") && !colorScheme.includes("dark")) return false;
+    return darkQuery.matches;
+  }
+
+  const diagrams = [...document.querySelectorAll(".mermaid")].map((el) => ({ el, src: el.textContent }));
+  let applied;
+  let rendering = false;
+  let queued = false;
+  function queueRender() {
+    queued = true;
+    if (rendering) return;
+    void render();
+  }
+  async function render() {
+    rendering = true;
+    try {
+      while (queued) {
+        queued = false;
+        const theme = pageIsDark() ? "dark" : "default";
+        if (theme === applied) continue;
+        mermaid.initialize({ startOnLoad: false, theme, securityLevel: "strict" });
+        for (const { el, src } of diagrams) {
+          el.removeAttribute("data-processed");
+          el.textContent = src;
+        }
+        try {
+          await mermaid.run({ nodes: diagrams.map((d) => d.el) });
+        } catch (error) {
+          console.error("Mermaid diagram render failed:", error);
+          return;
+        }
+        applied = theme;
+      }
+    } finally {
+      rendering = false;
+      if (queued) queueRender();
+    }
+  }
+
+  // First render once stylesheets are applied (no wrong-theme flash), then keep
+  // the diagrams in sync with page-theme toggles and OS light/dark changes.
+  if (document.readyState === "complete") queueRender();
+  else window.addEventListener("load", queueRender, { once: true });
+  const themeObserver = new MutationObserver(queueRender);
+  for (const el of [document.documentElement, document.body]) {
+    if (!el) continue;
+    themeObserver.observe(el, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class", "style"],
+    });
+  }
+  document.addEventListener("change", queueRender, true);
+  document.addEventListener(
+    "transitionend",
+    ({ propertyName }) => {
+      if (propertyName === "background-color") queueRender();
+    },
+    true,
+  );
+  darkQuery.addEventListener("change", queueRender);
+</script>
+</body>
+</html>

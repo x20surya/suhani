@@ -1,0 +1,24 @@
+# Local overlay for running the real Linux stack on a dev machine.
+#
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.local.yml up -d --build web agent autoheal
+#
+# Differences from the VPS deploy:
+#   - publishes web on the host so an existing cloudflared tunnel (or a browser
+#     on localhost:8080) can reach it directly
+#   - Caddy is simply not started: there is no domain and no certificate to get
+#     locally, and cloudflared already terminates TLS
+#
+# Everything else - the image, the agent healthcheck, autoheal, log rotation -
+# is identical to production, which is the whole point: this tests the real
+# thing, not an approximation.
+
+services:
+  web:
+    ports:
+      - "8080:8080"
+
+  agent:
+    # Expose the worker's health endpoint to the host so `dev.ps1 status` and
+    # any monitoring can see it the same way they do for the native run.
+    ports:
+      - "8081:8081"

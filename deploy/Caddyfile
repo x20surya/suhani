@@ -1,0 +1,33 @@
+# The domain comes from the SUHANI_DOMAIN environment variable, which
+# docker-compose passes through from .env. Caddy expands {$VAR} itself.
+#
+# This used to be a hardcoded placeholder that server-setup.sh rewrote with
+# `sed -i` on a tracked file - which dirties the working tree, breaks on a
+# second run, and silently reverts on `git pull`. Setting one env var does not.
+#
+# Caddy obtains and renews the HTTPS certificate automatically, which is the
+# whole reason it is here: the microphone requires HTTPS anywhere off localhost.
+
+# Default to localhost so an unset variable degrades to a local-only cert
+# instead of an opaque parse error on a box you are not sitting in front of.
+{$SUHANI_DOMAIN:localhost} {
+	reverse_proxy web:8080
+
+	# The PWA shell must stay cacheable, but index.html and the service worker
+	# must not: a stale index.html pins her phone to an old bundle, and Vite's
+	# content-hashed asset names already make long caching safe.
+	@immutable path /assets/* /fonts/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	@nocache path / /index.html /sw.js /manifest.webmanifest
+	header @nocache Cache-Control "no-cache"
+
+	encode gzip zstd
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+	}
+}

@@ -1,0 +1,112 @@
+# Suhani on a small Linux VPS: web + agent from one image, Caddy for HTTPS,
+# autoheal to act on healthchecks.
+#
+# Run:  docker compose -f deploy/docker-compose.yml up -d --build
+
+x-logging: &default-logging
+  # Docker's json-file driver is unbounded by default. The agent's DEBUG-level
+  # plugin chatter will fill a small disk and take the ledger down with it.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: suhani:latest
+    env_file: ../.env
+    volumes:
+      - ../data:/app/data
+    restart: unless-stopped
+    logging: *default-logging
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      autoheal: "true"
+
+  agent:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: suhani:latest
+    command: ["python", "-m", "silai.agent", "start"]
+    env_file: ../.env
+    volumes:
+      - ../data:/app/data
+    restart: unless-stopped
+    logging: *default-logging
+    # The worker drains in-flight jobs on SIGTERM. Docker's 10s default would
+    # cut a live conversation dead mid-sentence on every deploy and every
+    # autoheal restart.
+    stop_grace_period: 60s
+    healthcheck:
+      # The worker's OWN endpoint (production mode serves it on 8081), never
+      # "is a process alive" - after a wedge the process is alive and useless.
+      #
+      # HONEST LIMIT: in livekit-agents 1.6.7 this returns 503 only when the
+      # inference executor is dead or LiveKit reconnects are exhausted. A worker
+      # wedged inside the native WebRTC layer can return 200 forever. This check
+      # is necessary, not sufficient - deploy/heartbeat.sh is what actually
+      # proves the pipeline still works end to end.
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # Generous: first start loads the VAD and turn-detector weights.
+      start_period: 180s
+    labels:
+      autoheal: "true"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    logging: *default-logging
+    # REQUIRED, and easy to get wrong: compose's own .env only feeds ${VAR}
+    # interpolation inside THIS file. It does not populate a container's
+    # environment. Caddy expands {$SUHANI_DOMAIN} from its own process env, so
+    # without env_file the site address expands to empty and the config is
+    # malformed. Trade-off: this hands the full secret set to the Caddy
+    # container, which is acceptable on a single-tenant personal box.
+    env_file: ../.env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      # Otherwise the access log lives in the container's writable layer and is
+      # destroyed on every rebuild.
+      - caddy_logs:/var/log/caddy
+
+  # Docker restart policies react to a process EXITING, never to health status.
+  # An unhealthy-but-running container sits there forever without this, which is
+  # precisely the failure mode this move to Linux exists to escape.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: 15
+      AUTOHEAL_START_PERIOD: 120
+      # Must exceed the agent's stop_grace_period or a drain gets truncated.
+      AUTOHEAL_DEFAULT_STOP_TIMEOUT: 60
+    volumes:
+      # Root-equivalent access to the host. Acceptable on a single-tenant
+      # personal VPS; be aware that is the trade being made.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy_logs:

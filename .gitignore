@@ -1,0 +1,11 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+data/
+.pytest_cache/
+node_modules/
+
+# web/ is Vite build output from webapp/ and IS committed on purpose:
+# it lets the aarch64 VPS build the Docker image without Node.

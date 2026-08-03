@@ -1,4 +1,5 @@
-"""The voice agent: LiveKit worker wiring Saaras v3 (ears) + Claude (brain) + Bulbul v3 (voice).
+"""The voice agent: LiveKit worker wiring Saaras (ears) + the configured brain + Bulbul (voice).
+Model versions live in config: SARVAM_STT_MODEL / SARVAM_TTS_MODEL / BRAIN.
 
 Run:
     python -m silai.agent download-files   # once: VAD + turn-detector models
@@ -29,11 +30,31 @@ from livekit.agents import (
 from livekit.plugins import anthropic as lk_anthropic
 from livekit.plugins import openai as lk_openai
 from livekit.plugins import sarvam
+from livekit.plugins.sarvam import stt as _sarvam_stt
 
 from . import config, prompts, tools
 from .ledger import Ledger
 
 logger = logging.getLogger("silai.agent")
+
+# livekit-plugins-sarvam 1.6.7 predates Saaras v4. Unknown models do stream,
+# but the plugin silently DROPS the mode query param for them - which would
+# quietly lose codemix (Hinglish) transcription. Register v4 with v3's
+# capabilities until a plugin release knows it natively; verified 2026-08-02
+# against the streaming endpoint (codemix + vad signals + flush all honoured).
+if "saaras:v4" not in _sarvam_stt.MODEL_CONFIGS:
+    _sarvam_stt.MODEL_CONFIGS["saaras:v4"] = _sarvam_stt.ModelConfig(
+        supports_prompt=True,
+        supports_mode=True,
+        supports_language=True,
+        supports_vad_params=True,
+        default_language="en-IN",
+        default_mode="transcribe",
+        use_translate_endpoint=False,
+        use_translate_method=False,
+        # v4's language list may grow past v3's - don't gate on a stale copy.
+        allowed_languages=None,
+    )
 
 # Spoken instantly when a slow (write/briefing) tool starts, so there is never
 # dead air while Claude does its second round trip. Kept out of chat history.
@@ -302,7 +323,7 @@ async def entrypoint(ctx: JobContext) -> None:
     session = AgentSession(
         stt=sarvam.STT(
             language="hi-IN",
-            model="saaras:v3",
+            model=config.SARVAM_STT_MODEL,
             mode="codemix",           # Hinglish-native transcription
             sample_rate=16000,
             high_vad_sensitivity=True,
@@ -311,7 +332,7 @@ async def entrypoint(ctx: JobContext) -> None:
         llm=brain,
         tts=sarvam.TTS(
             target_language_code="hi-IN",
-            model="bulbul:v3",
+            model=config.SARVAM_TTS_MODEL,
             speaker=config.VOICE_SPEAKER,
             speech_sample_rate=24000,
             pace=config.VOICE_PACE,               # slightly brisk = upbeat
@@ -348,8 +369,8 @@ async def entrypoint(ctx: JobContext) -> None:
                 "enabled": True,
                 # NOTE: mode "adaptive" (the ML backchannel detector) is NOT set
                 # here on purpose. It requires an STT reporting
-                # capabilities.aligned_transcript, and Sarvam Saaras v3 reports
-                # False, so livekit disables it and logs
+                # capabilities.aligned_transcript, and the Sarvam plugin
+                # hardcodes False for every model, so livekit disables it and logs
                 # "interruption_detection ... not compatible". Setting it just
                 # produces a warning and no behaviour. backchannel_boundary is
                 # adaptive-only and therefore moot for the same reason.

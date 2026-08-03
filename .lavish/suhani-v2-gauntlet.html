@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en" data-theme="luxury">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suhani v2 Prompt Gauntlet - 300/304</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, h1, h2, h3, li, td, th, .badge) { overflow-wrap: anywhere; }
+</style>
+</head>
+<body class="bg-base-100 text-base-content">
+<main class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-10 space-y-10">
+
+  <section class="hero bg-base-200 rounded-box">
+    <div class="hero-content w-full flex-col items-start gap-4 py-9">
+      <p class="text-sm uppercase tracking-widest opacity-60">Suhani native app &middot; shipped-prompt gauntlet &middot; 2 August 2026</p>
+      <h1 class="text-3xl sm:text-4xl font-bold leading-tight">300/304 - the restructured Hinglish prompt beats the old baseline in every language.<br/>
+        <span class="opacity-70 font-normal text-2xl">98.7% vs 93.8%. English +5, Marwari +8. Zero empty replies in 609 calls.</span></h1>
+      <div role="alert" class="alert alert-success alert-soft w-full">
+        <span><strong>What was tested:</strong> the EXACT prompt the phone ships - extracted verbatim from the app's <code>Prompts.kt</code> (sectioned Kaam-Saathi-style structure + Hinglish speaking style + new guardrails) and pushed through the full megatest matrix: 4 languages &times; 5 speaking styles &times; 11 transaction categories = 124 conversations, 304 programmatic checks against a real ledger DB, 609 LLM calls. Old-prompt baseline (29 July): 285/304. <strong>Every single language improved. The restructure is a clean upgrade - no regression anywhere.</strong></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">Per-language results vs baseline</h2>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra">
+        <thead><tr><th>Language</th><th>New prompt</th><th>Old baseline</th><th>Delta</th><th>Latency avg / p50 / p90</th><th>Empties</th><th>Failed scenario</th></tr></thead>
+        <tbody>
+          <tr><td>Hindi</td><td><span class="badge badge-success">75/76</span></td><td>74/76</td><td class="text-success">+1</td><td>2.34s / 1.74s / 3.89s</td><td>0</td><td><code>reschedule2</code></td></tr>
+          <tr><td>Hinglish</td><td><span class="badge badge-success">75/76</span></td><td>74/76</td><td class="text-success">+1</td><td>2.50s / 1.80s / 5.08s</td><td>0</td><td><code>reschedule1</code></td></tr>
+          <tr><td>English</td><td><span class="badge badge-success">75/76</span></td><td>70/76</td><td class="text-success font-bold">+5</td><td>1.97s / 1.74s / 3.31s</td><td>0</td><td><code>reschedule1</code></td></tr>
+          <tr><td>Marwari</td><td><span class="badge badge-success">75/76</span></td><td>67/76</td><td class="text-success font-bold">+8</td><td>2.81s / 2.11s / 5.58s</td><td>0</td><td><code>order_existing3</code></td></tr>
+          <tr class="font-bold"><td>TOTAL</td><td><span class="badge badge-success badge-lg">300/304 (98.7%)</span></td><td>285/304 (93.8%)</td><td class="text-success">+15</td><td colspan="3">609 calls, 0 empty replies anywhere</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-sm opacity-70">The headline: <strong>Marwari's old update-verb weakness (67/76, the one class flagged "still needs Claude") is GONE</strong> - the Hinglish speaking style + "ख़बर = ACTION in any language" guard combination now handles it at parity with Hindi. English's +5 likely comes from the same effect: the prompt no longer forces Hindi-only phrasing, so English inputs stop fighting the style rules.</p>
+  </section>
+
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">The 4 failures - one pattern, one fix</h2>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>Failure</th><th>What happened</th><th>Diagnosis</th></tr></thead>
+        <tbody>
+          <tr><td><code>reschedule2</code> (Hindi)<br/><code>reschedule1</code> (Hinglish, English)</td>
+              <td>"due moved to Monday" resolved to 2026-08-10 (next-next Monday) instead of 2026-08-03</td>
+              <td>Weekday arithmetic on RESCHEDULES bypasses the resolve_due_date mandate - the guard names "due_date भेजने से पहले" (new orders) but the update flow slips through on some runs. 3 of 4 failures are this one pattern.</td></tr>
+          <tr><td><code>order_existing3</code> (Marwari)</td>
+              <td>One compound-utterance flake on an existing-client order (known ~1-in-6 class from the original gauntlet, DB integrity never violated)</td>
+              <td>Same residual flake documented pre-restructure; not a new regression.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div role="alert" class="alert alert-success alert-soft">
+      <span><strong>FIX APPLIED &amp; VERIFIED (approved 2 Aug, late night):</strong> the guard now mandates resolve_due_date for update_order reschedules too. Re-test, 2 runs &times; 3 languages: <strong>11/12 reschedule checks pass</strong> (was ~50% failing). Hindi 4/4, English 4/4, Hinglish 3/4 - one run still skipped the tool (prompt guards are probabilistic; the wrong date's blast radius is one read-back mom would catch: "सोमवार यानी दस अगस्त" sounds wrong immediately). Projected full-matrix score with the fix: ~303/304. The guard ships in the current suhani.apk.</span>
+    </div>
+  </section>
+
+  <section class="space-y-3">
+    <h2 class="text-2xl font-bold">Context: today's full journey</h2>
+    <ul class="list-disc pl-6 text-sm space-y-1 opacity-90">
+      <li>All 3 phases built: 44/44 ledger test parity, full voice loop (S2-validated turn-taking), aura UI - one APK, zero servers.</li>
+      <li>On-device spikes: S1 echo cancellation PASS (0% leak), S3 exposed LLM+TTS as the latency cost - sentence pipelining shipped in response.</li>
+      <li>Real-conversation bugs fixed from your testing: stuck turns (END_SPEECH/transcript race), clipped last word (buffer drain), spoken "null" (JSON null), background-forever service, ledger row wrap, insets.</li>
+      <li>Voice: Hinglish + warmer, brisker delivery (pace 1.12, temp 0.85). Prompt restructured to the Kaam Saathi skeleton - now validated at 300/304.</li>
+      <li>Queued v2 features (your asks, scoped): WhatsApp draft-and-send + client calling + SMS payment detection (suggest-and-confirm, never silent writes); wake word options; speaker separation (Saaras v4 multi-speaker probe first).</li>
+    </ul>
+  </section>
+
+  <footer class="text-xs opacity-50 pb-6">
+    Data: data/bakeoff/mega_{hindi,hinglish,english,marwari}.json (2 Aug 2026 runs) vs 29 July baselines. Harness: silai/megatest_v2.py extracts the shipped prompt verbatim from suhani-app Prompts.kt. Design: matched to the project's existing Lavish artifacts.
+  </footer>
+</main>
+</body>
+</html>

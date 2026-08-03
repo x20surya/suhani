@@ -243,6 +243,12 @@ def openai_toolset(with_date_guards: bool = True) -> list[dict]:
             if t["name"] == "orders_due":
                 t["description"] += " 'इस हफ़्ते' = आज से आने वाले रविवार तक।"
         ts.append(RESOLVE_DATE_TOOL)
+    ts.append({
+        "name": "end_conversation",
+        "description": ("बातचीत ख़त्म करो। मालकिन बात समेट दें (\"ठीक है अभी के लिए\", \"चलो अभी कुछ नहीं\") "
+                        "तो यह चलाओ और साथ के जवाब में छोटा विदा-वाक्य बोलो। बीच काम में कभी नहीं।"),
+        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    })
     return [{"type": "function",
              "function": {"name": t["name"], "description": t["description"],
                           "parameters": t["input_schema"]}} for t in ts]
@@ -253,6 +259,8 @@ def dispatch(ledger: Ledger, name: str, args: dict[str, Any]) -> str:
     try:
         if name == "resolve_due_date":
             return resolve_due_date(args)
+        if name == "end_conversation":
+            return json.dumps({"ok": True, "note": "विदा बोलिए, app बंद हो जाएगा"}, ensure_ascii=False)
         if name == "find_client":
             matches = ledger.find_client(args["name"])
             # Remember successful hearings as aliases so matching improves over time.

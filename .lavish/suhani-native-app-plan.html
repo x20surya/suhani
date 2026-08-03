@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en" data-theme="luxury">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suhani Native App - Architecture Verification &amp; Build Plan</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > *, :where([style*="display: grid"], [style*="display:flex"]) > * { min-width: 0; }
+  :where(p, h1, h2, h3, h4, li, td, th, .badge, .label) { overflow-wrap: anywhere; }
+  :where(img, svg) { max-width: 100%; height: auto; }
+  .mermaid { display: flex; justify-content: center; }
+</style>
+</head>
+<body class="bg-base-100 text-base-content">
+<main class="mx-auto max-w-5xl p-4 sm:p-6 lg:p-10 space-y-12">
+
+  <!-- ============ VERDICT ============ -->
+  <section class="hero bg-base-200 rounded-box">
+    <div class="hero-content w-full flex-col items-start gap-5 py-10">
+      <p class="text-sm uppercase tracking-widest opacity-60">Suhani native app &middot; architecture verification &amp; build plan &middot; 2 August 2026</p>
+      <h1 class="text-3xl sm:text-4xl font-bold leading-tight">Approved. Full plan, spikes roll into Phase 1.<br/>
+        <span class="opacity-70 font-normal text-2xl">All five decisions locked; turn-taking redesigned Sarvam-first after the Smart Turn size concern checked out as valid.</span></h1>
+      <div role="alert" class="alert alert-success alert-soft w-full">
+        <span><strong>Recommendation: build the native Android app (Option B). Mom has never used the server version, so there is no migration, no cutover, no fallback she'd return to - she starts fresh on the native app, and the Docker/LiveKit stack survives only as the dev benchmark.</strong>
+        The app absorbs the entire server side: mic &rarr; Saaras v4 WebSocket (verified live with our key on 2026-08-02) &rarr; Sarvam-105B tool loop (identical prompts/guards, already the production brain) &rarr; Room/SQLite ledger on device &rarr; Bulbul v3. No VPS, no Docker, no LiveKit, no tunnel, no web push - the whole "Suhani didn't answer" failure class disappears with the infrastructure that caused it.</span>
+      </div>
+      <p class="text-sm opacity-70">Verification method: live API tests against Sarvam's streaming endpoints with the production key, plugin source inspection, license checks on both turn-detection models, and published benchmarks (LiveKit eot-bench, Smart Turn v3, Saaras IndicVoices WER). Everything below marked <span class="badge badge-success badge-soft badge-sm">verified</span> was tested or source-inspected, not assumed.</p>
+    </div>
+  </section>
+
+  <!-- ============ VERIFICATION TABLE ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">1 &middot; Verification - every load-bearing claim</h2>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>Claim the architecture depends on</th><th>How it was checked</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Saaras v4 streaming STT works from any WebSocket client (not just LiveKit), with codemix + VAD signals</td>
+            <td>Direct WS test with production key, 2026-08-02: same URL/params/frame format the plugin uses. Transcripts + START/END_SPEECH events received; v4 beat v3 on our own sample ("सिलाई बही" clean vs "स्लाइ बही" garbled)</td>
+            <td><span class="badge badge-success badge-soft">verified</span></td>
+          </tr>
+          <tr>
+            <td>Sarvam-105B brain is callable over plain HTTPS with tool calling</td>
+            <td>It already runs in production via OpenAI-compat REST + <code>api-subscription-key</code> header; ~1,300 gauntlet calls used this exact path. OkHttp speaks it trivially</td>
+            <td><span class="badge badge-success badge-soft">verified</span></td>
+          </tr>
+          <tr>
+            <td>Bulbul v3 streaming TTS available outside LiveKit</td>
+            <td>Sarvam changelog: TTS WebSocket GA since June 2025; the LiveKit plugin consumes the public WS; REST endpoint tested directly (voice samples in <code>data/voice_demo/</code> came from it)</td>
+            <td><span class="badge badge-success badge-soft">verified</span></td>
+          </tr>
+          <tr>
+            <td>Turn-taking without LiveKit's model</td>
+            <td><strong>LiveKit turn-detector: rejected</strong> (proprietary license + Qwen tokenizer). <strong>Smart Turn v3 checked and demoted</strong>: 8M params, Hindi accuracy only 93.44% (4.4% false positives) - not good enough to carry the experience alone (Surya's concern, confirmed by the published numbers). <strong>Decision: Sarvam-first layered turn-taking</strong> (see section 5a): Sarvam's own VAD + Saaras punctuation heuristics + speculative generation, with Smart Turn as an optional extra vote only if the S2 bake-off proves it helps</td>
+            <td><span class="badge badge-warning badge-soft">redesigned</span></td>
+          </tr>
+          <tr>
+            <td>Silero VAD runs on-device</td>
+            <td>Official ONNX release, runs on onnxruntime-android; it is the same model our agent uses today (and the same parameter family Sarvam exposes server-side)</td>
+            <td><span class="badge badge-success badge-soft">verified</span></td>
+          </tr>
+          <tr>
+            <td>Echo cancellation without a browser (barge-in depends on this)</td>
+            <td>Android platform AEC via <code>AudioSource.VOICE_COMMUNICATION</code> - hardware-dependent quality, so it is <strong>Spike S1</strong> with a measurable pass bar, not an assumption. Fallback: webrtc-audio-processing via JNI</td>
+            <td><span class="badge badge-warning badge-soft">spike S1</span></td>
+          </tr>
+          <tr>
+            <td>No data migration needed</td>
+            <td>Mom never used the server version - the existing <code>silai.db</code> holds only demo/gauntlet data. The app starts with a fresh, empty बही; Room reuses the same proven schema</td>
+            <td><span class="badge badge-success badge-soft">confirmed by Surya</span></td>
+          </tr>
+          <tr>
+            <td>Reminders without a server</td>
+            <td>AlarmManager/WorkManager local notifications at <code>REMINDER_HOUR</code> - strictly more reliable than web push, no VAPID, no server that must be awake at 8am</td>
+            <td><span class="badge badge-success badge-soft">verified</span></td>
+          </tr>
+          <tr>
+            <td>The gauntlet's 390/413 behavioral validation still applies</td>
+            <td>Prompts, guards, calendar table, and <code>resolve_due_date</code> port as unchanged strings/logic; the brain + API are identical. The Python gauntlet harness remains the regression suite for brain behavior</td>
+            <td><span class="badge badge-success badge-soft">verified</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div role="alert" class="alert alert-warning alert-soft">
+      <span><strong>The one real quality risk is turn-taking, and it is now engineered rather than delegated to a model.</strong> The reference numbers: LiveKit's (unusable) model reports Hindi 99.4% TPR / 96.3% TNR; Smart Turn v3 reports 93.44% Hindi accuracy with 4.4% false positives - a cut-off roughly every 20 turns if used alone, which is why it is demoted to an optional vote. The layered Sarvam-first design in section 5a attacks the same problem with three independent, tunable mechanisms, and the Phase 4 benchmark against the LiveKit stack measures the result instead of hoping.</span>
+    </div>
+  </section>
+
+  <!-- ============ ARCHITECTURE DIAGRAMS ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">2 &middot; What dies, what remains</h2>
+    <p class="text-sm opacity-70">Today's pipeline has five machines/processes between her voice and the ledger. The native app has one.</p>
+    <div class="grid gap-4 lg:grid-cols-2">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Today - server stack (stays as fallback)</h3>
+          <pre class="mermaid">
+flowchart TD
+  A["PWA in Chrome<br/>(mom's phone)"] -->|"WebRTC"| B["LiveKit Cloud<br/>Mumbai"]
+  B --> C["Agent worker<br/>(Docker, your PC / VPS)"]
+  C -->|"WS"| D["Saaras v4 STT"]
+  C -->|"HTTPS"| E["Sarvam-105B brain"]
+  C -->|"WS"| F["Bulbul v3 TTS"]
+  C --> G[("SQLite ledger<br/>on the PC")]
+  H["web.py FastAPI<br/>tokens + PWA + push"] --> A
+  H --> G
+          </pre>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Target - one Kotlin app, everything on the phone</h3>
+          <pre class="mermaid">
+flowchart TD
+  M["Mic 16k mono<br/>VOICE_COMMUNICATION + AEC"] --> V["Silero VAD<br/>ONNX, on-device"]
+  V -->|"speech frames"| S["Saaras v4 WS<br/>codemix, direct"]
+  S -->|"VAD events + transcripts"| T["Turn-taking stack (5a)<br/>Sarvam VAD + punctuation<br/>heuristics + speculative start"]
+  T -->|"turn complete"| BR["Sarvam-105B tool loop<br/>OkHttp, same prompts/guards"]
+  BR <--> L[("Room / SQLite<br/>ledger on device")]
+  BR --> TT["Bulbul v3 WS"]
+  TT --> SP["AudioTrack<br/>loudspeaker"]
+  SP -.->|"barge-in: VAD + 2 words"| V
+          </pre>
+        </div>
+      </div>
+    </div>
+    <p class="text-sm opacity-70">Retired at cutover: LiveKit Cloud dependency, the agent worker, Docker/autoheal, web.py, cloudflared tunnel, web push + VAPID, the VPS question itself. Audio goes phone &rarr; Sarvam directly, removing the LiveKit round trip (~50-150ms) and the room-dispatch cold start entirely.</p>
+  </section>
+
+  <!-- ============ OPTIONS ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">3 &middot; All the possibilities, honestly scored</h2>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>Option</th><th>Hosting cost / ops</th><th>Latency</th><th>Turn-taking</th><th>Rewrite risk</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>A &middot; Current stack &rarr; Oracle free VPS</strong><br/><span class="opacity-60 text-xs">Docker compose as-is on Always Free ARM</span></td>
+            <td>₹0 + real ops (a server to own)</td>
+            <td>Good (measured: TTFT 1.0-1.3s)</td>
+            <td class="text-success">Best (LiveKit EOU model)</td>
+            <td class="text-success">Zero - it already runs</td>
+            <td><span class="badge badge-soft badge-info">dev benchmark only</span></td>
+          </tr>
+          <tr class="font-semibold">
+            <td><strong>B &middot; Native Android app, all on-device</strong><br/><span class="opacity-60 text-xs font-normal">this plan</span></td>
+            <td class="text-success">₹0, zero servers</td>
+            <td class="text-success">Best (no LiveKit hop, no cold start)</td>
+            <td>Very good pending A/B (Smart Turn v3)</td>
+            <td class="text-warning">Ledger + voice loop rewrite, test-gated</td>
+            <td><span class="badge badge-success">recommended</span></td>
+          </tr>
+          <tr>
+            <td><strong>C &middot; Native client + keep Python agent</strong><br/><span class="opacity-60 text-xs">LiveKit Android SDK, server stays</span></td>
+            <td>Same as A plus an app to maintain</td>
+            <td>Same as A</td>
+            <td class="text-success">Best</td>
+            <td>Small (client only)</td>
+            <td><span class="badge badge-soft badge-neutral">worst of both - two stacks forever</span></td>
+          </tr>
+          <tr>
+            <td><strong>D &middot; Oracle DB+API, agent elsewhere</strong><br/><span class="opacity-60 text-xs">the split we discussed</span></td>
+            <td>₹0 + ops on two halves</td>
+            <td>Good (+50-150ms/turn on tools)</td>
+            <td class="text-success">Best</td>
+            <td>Medium (ledger becomes HTTP)</td>
+            <td><span class="badge badge-soft badge-neutral">no benefit at free-tier size</span></td>
+          </tr>
+          <tr>
+            <td><strong>E &middot; Managed platform (ElevenLabs Agents)</strong></td>
+            <td>~₹2,000+/mo, no ops</td>
+            <td>Good</td>
+            <td>Good</td>
+            <td>Medium (rebuild on their runtime)</td>
+            <td><span class="badge badge-soft badge-neutral">over budget, less control</span></td>
+          </tr>
+          <tr>
+            <td><strong>F &middot; Fully offline on-device AI</strong><br/><span class="opacity-60 text-xs">AI4Bharat STT/TTS + small local LLM</span></td>
+            <td class="text-success">₹0, works without internet</td>
+            <td>Poor on a phone</td>
+            <td>Unknown</td>
+            <td class="text-error">Huge, and Hindi quality drops hard</td>
+            <td><span class="badge badge-soft badge-neutral">not while Sarvam costs ₹3/min</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-sm opacity-70">Why B over A long-term: A keeps five processes, a container host, a tunnel/domain, and a server that must be healthy at 8am - permanent operational surface for a one-phone product. B collapses it into the artifact she already holds. Since mom never used A, there is nothing to migrate or fall back to - A's only remaining job is serving as the quality benchmark during development, then it gets deleted.</p>
+  </section>
+
+  <!-- ============ WHAT'S PRESERVED ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">4 &middot; What's preserved vs rewritten</h2>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base text-success">Ported unchanged (the battle-tested parts)</h3>
+          <ul class="list-disc pl-5 text-sm space-y-1">
+            <li><strong>Prompts + guards + persona</strong> - plain strings: STABLE_SYSTEM, SARVAM_GUARDS, calendar table, Marwari mirroring, capabilities-honesty, यादें rules</li>
+            <li><strong>resolve_due_date</strong> - ~30 lines of date logic, trivial Kotlin port</li>
+            <li><strong>Brain config</strong> - sarvam-105b, effort low, 1024 tokens, empty-retry: the gauntlet-winning setup, same API</li>
+            <li><strong>The ledger SCHEMA</strong> - same proven table design in Room; the बही itself starts fresh (no real data exists yet)</li>
+            <li><strong>The gauntlet harness</strong> - stays in Python, still the brain regression suite (it tests prompts + model via API, both unchanged)</li>
+            <li><strong>Bulbul voice</strong> - suhani speaker, pace 1.05, temperature 0.75</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base text-warning">Rewritten in Kotlin (test-parity gated)</h3>
+          <ul class="list-disc pl-5 text-sm space-y-1">
+            <li><strong>ledger.py &rarr; Room + Kotlin</strong> - fuzzy transliteration matching, FIFO payments, idempotency guards, search. Gate: all 44 Python unit tests mirrored and green before anything voice</li>
+            <li><strong>Voice loop</strong> - was livekit-agents; becomes: audio capture + AEC, Silero VAD, the 5a turn-taking stack, WS streaming, barge-in (replicating today's tuning: 2+ transcribed words, 0.8s sustain, resume on false interruption), write-fillers, Hindi error line</li>
+            <li><strong>UI</strong> - Compose port of the webapp screens (aura orb, briefing card, ledger view, यादें, volume). Android 13+ AGSL can run the shader; simpler pulse fallback for older phones</li>
+            <li><strong>Reminders</strong> - reminders.py &rarr; WorkManager daily briefing notification</li>
+            <li><strong>Backups</strong> - daily DB copy &rarr; app-private + optional Drive/Sheets mirror (decision Q3)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <p class="text-sm opacity-70">Deliberately NOT doing: Chaquopy (embedding Python to reuse ledger.py verbatim). It would carry the tested code but adds a second runtime, slower cold start, and a permanent oddity to maintain. A clean Kotlin port gated on mirrored tests keeps one runtime and proves equivalence instead of assuming it. Override in Q4 if you disagree.</p>
+  </section>
+
+  <!-- ============ THE PLAN ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">5 &middot; The build plan</h2>
+    <ul class="steps steps-vertical lg:steps-horizontal w-full text-sm">
+      <li class="step step-primary">S0 Spikes</li>
+      <li class="step">P1 Ledger core</li>
+      <li class="step">P2 Voice loop</li>
+      <li class="step">P3 UI + reminders</li>
+      <li class="step">P4 Benchmark + mom</li>
+    </ul>
+
+    <div class="card card-border bg-base-100">
+      <div class="card-body">
+        <h3 class="card-title text-base">5a &middot; The turn-taking stack - Sarvam-first, model-optional <span class="badge badge-soft badge-warning badge-sm">redesigned per your feedback</span></h3>
+        <p class="text-sm opacity-70">Your instinct was right: 8M parameters at 93.44% Hindi accuracy cannot own this decision. So no single model owns it - three independent, individually tunable layers do, built almost entirely from Sarvam's own signals:</p>
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead><tr><th>Layer</th><th>Mechanism</th><th>What it catches</th></tr></thead>
+            <tbody>
+              <tr><td><strong>1 &middot; Sarvam VAD</strong></td><td>Saaras's own server-side START/END_SPEECH events (verified live) - the acoustic boundary, ~64ms after silence</td><td>When she stops making sound</td></tr>
+              <tr><td><strong>2 &middot; Completeness heuristics</strong></td><td>Saaras finals arrive punctuated. Ends in danda "।" or "?" &rarr; likely complete, respond after a short wait (~300ms). Ends in a dangling connective ("और", "का", "की", "से", "तक", "तो", "मतलब"...) or no terminal punctuation &rarr; likely mid-thought, extend the wait (~1.2-1.5s). A ~30-line rule table for Hindi/Marwari, fully tunable, zero model risk</td><td>Thinking pauses mid-sentence - the exact case where acoustic-only cuts her off</td></tr>
+              <tr><td><strong>3 &middot; Speculative start with cancel</strong></td><td>On a "likely complete" boundary, the brain call starts immediately; if she resumes speaking before Suhani's first audio, the run is aborted and her continued speech merges into the turn. <strong>Write tools never execute from a run that gets cancelled</strong> - reads may run speculatively, writes only after the turn is confirmed</td><td>Makes wrong "complete" guesses nearly free: a cancelled LLM call (promo-priced ~₹0) instead of an interruption</td></tr>
+              <tr><td class="opacity-70"><strong>4 &middot; Smart Turn v3.1</strong> <span class="badge badge-ghost badge-xs">optional flag</span></td><td class="opacity-70">Runs as one extra vote behind a feature flag, only if the S2 bake-off shows it reduces false cutoffs on our own Hindi/Marwari clips beyond what layers 1-3 achieve</td><td class="opacity-70">Whatever the rules miss - kept only if measured to help</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-sm opacity-70">This is "use Sarvam's own" done safely: Sarvam's VAD and Sarvam's punctuated transcripts drive the decision, Sarvam's brain absorbs the residual errors via speculation, and the third-party model shrinks to a measured, deletable extra.</p>
+        <div role="alert" class="alert alert-success alert-soft">
+          <span><strong>S2 measured it (2026-08-02): acoustic-only cut off 20/20 pause-trap clips; the layered stack cut off 0/20.</strong>
+          Findings that shaped the final tuning: (1) Saaras auto-punctuates dangling fragments ("...लिख दो और" arrives as "...और।"), so punctuation carries no completeness signal - the rule became "complete = verb-final AND not connective-ending" (Hindi is verb-final, so this is linguistically load-bearing); (2) Saaras splits utterances at prosodic gaps, so verb-final FRAGMENTS ("दो काम हैं। ...") fire speculatively - the cancel layer absorbs all of them because the on-device VAD sees her resume within ~150ms (the server's own START events lag by up to 1.1s - local VAD is not optional); (3) winning config: 500ms wait on complete-looking ends, 1800ms on incomplete-looking, cancel window = first-audio time (~1.5s). Cost: ~1 cancelled promo-priced LLM call per trap turn. <strong>Smart Turn v3.1 stays OFF - at 0/20 there is nothing left for it to earn.</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Phase 0 - three go/no-go spikes <span class="badge badge-soft badge-primary badge-sm">~1 day, needs your phone</span></h3>
+          <div class="overflow-x-auto">
+            <table class="table table-sm">
+              <thead><tr><th>Spike</th><th>What it proves</th><th>Pass bar</th></tr></thead>
+              <tbody>
+                <tr><td><strong>S1 echo/AEC</strong></td><td>Play Bulbul audio from the loudspeaker while streaming mic to Saaras; count how much of Suhani's own speech comes back as transcript</td><td>&lt;10% of her words transcribed back on your Android; else wire webrtc-audio-processing and re-test</td></tr>
+                <tr><td><strong>S2 turn-taking bake-off</strong> <span class="badge badge-success badge-sm">DONE - PASSED</span></td><td>Ran 2026-08-02 host-side against live Saaras v4: 20 synthesized pause-trap clips (14 mid-thought, 6 afterthought, incl. Marwari), event logs replayed through the policies (silai/s2_bakeoff.py + s2_replay.py, logs in data/bakeoff/)</td><td><strong>Result: acoustic-only = 20/20 false cutoffs; full 5a stack (heuristics + speculative-cancel) = 0/20</strong>, at ~1 cancelled speculative call per pause-trap turn. Smart Turn v3.1 flag: OFF - nothing left for it to improve. Findings folded into 5a below</td></tr>
+                <tr><td><strong>S3 direct-path latency</strong></td><td>Phone &rarr; Saaras WS &rarr; brain &rarr; Bulbul WS &rarr; first audio, no LiveKit</td><td>First audible reply p50 &le; 2.0s on WiFi (current stack: ~2.5-3s perceived)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-sm opacity-70">Any spike failing its bar comes back to you with data before more is built - that's the point of doing them first.</p>
+        </div>
+      </div>
+
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Phase 1 - Kotlin ledger core + text chat <span class="badge badge-soft badge-primary badge-sm">~2-3 days</span></h3>
+          <ul class="list-disc pl-5 text-sm space-y-1">
+            <li>Project scaffold (Kotlin, Compose, Room, OkHttp, onnxruntime-android); mom's phone is a POCO X6 5G on Android 16 (Dimensity 8300, 8GB+ RAM), so min SDK 33, AGSL available, ONNX comfortable</li>
+            <li>Room schema mirroring silai.db + one-time importer for the real ledger file</li>
+            <li>Port ledger logic: transliteration-aware fuzzy matching, token matching, FIFO mark_paid, idempotency guards, search_orders, notes cap/prune</li>
+            <li><strong>Exit gate: all 44 Python unit tests mirrored in Kotlin (JVM tests, no device needed) and green, checked case-by-case against the Python suite</strong></li>
+            <li>Debug text-chat screen wired to the Sarvam brain with full toolset - the smoke_chat equivalent, proving the whole non-audio loop on device</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Phase 2 - the voice loop <span class="badge badge-soft badge-primary badge-sm">~3-4 days</span></h3>
+          <ul class="list-disc pl-5 text-sm space-y-1">
+            <li>Foreground service (microphone type) active only during a conversation; wake lock; audio focus handling (WhatsApp call arriving mid-session pauses Suhani cleanly)</li>
+            <li>Capture at 16k mono via VOICE_COMMUNICATION with AEC/NS; Silero VAD ONNX gating what streams to Saaras</li>
+            <li>Saaras v4 WS client (the protocol I already tested): codemix, vad_signals, flush; auto-reconnect with resume on network blips</li>
+            <li>The 5a turn-taking stack: Sarvam VAD events + completeness heuristics + speculative start with cancel-on-resume (writes gated on turn confirmation); Smart Turn behind its flag if S2 earned it</li>
+            <li>Barge-in replicating today's tuning: interrupt only on 2+ transcribed words sustained 0.8s; resume speech after false interruptions; never discard her audio</li>
+            <li>Bulbul v3 WS streaming into AudioTrack (loudspeaker routing is a one-line AudioManager call now); write-fillers ("हाँ, लिखती हूँ..."); Hindi error line on any pipeline failure</li>
+            <li>Latency instrumentation per stage (STT final / EOU / brain TTFT / TTS TTFB) logged locally, same as the worker does today</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Phase 3 - UI, reminders, backups <span class="badge badge-soft badge-primary badge-sm">~2-3 days</span></h3>
+          <ul class="list-disc pl-5 text-sm space-y-1">
+            <li>Compose UI: faithful port of the aura webapp design (your Q2 pick) - the shader runs via AGSL, native on Android 13+ and comfortably within the POCO X6's GPU; honest state captions, briefing card, volume slider (real gain stage), ledger + यादें screens</li>
+            <li>Daily briefing notification at REMINDER_HOUR via WorkManager; tapping it opens the app with the briefing spoken</li>
+            <li>Nightly DB backup to app storage, keep 14 (your Q3 pick: local-only for now) - <strong>flagged to revisit before mom's real बही accumulates</strong>, since a lost phone is then the only copy</li>
+            <li>Sideload-ready signed APK; install on your phone first</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Phase 4 - quality benchmark, then mom's first session <span class="badge badge-soft badge-primary badge-sm">~2 days + real use</span></h3>
+          <ul class="list-disc pl-5 text-sm space-y-1">
+            <li><strong>Benchmark gate: 20 scripted scenarios (from the gauntlet set) spoken against both stacks on the same phone.</strong> The LiveKit stack is purely the measuring stick - native must match or beat it on false cutoffs, first-reply latency, transcript fidelity, and DB correctness before mom ever sees the app</li>
+            <li>Your Hindi tone review on the real device</li>
+            <li>Mom's FIRST-EVER Suhani session happens directly on the native app - no migration, no cutover, no old habits to unlearn; she starts with a fresh बही and adds her real clients by voice</li>
+            <li>The Docker stack is frozen from P1 and deleted once the benchmark passes and mom's first week is clean - it was never her version, so nothing depends on it</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Your part (~3-5 hours total)</h3>
+          <ul class="list-disc pl-5 text-sm space-y-1">
+            <li>Run the 3 spikes' APKs on a phone, ~30 min of tapping (ideally the POCO X6 5G itself for S1's AEC test)</li>
+            <li>Hindi tone review of anything that changed in speech flow</li>
+            <li>Mom's first session</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card card-border bg-base-100">
+        <div class="card-body">
+          <h3 class="card-title text-base">Cost</h3>
+          <ul class="list-disc pl-5 text-sm space-y-1">
+            <li>Hosting: <strong>₹0 forever</strong> (no VPS, no domain, no tunnel needed)</li>
+            <li>API usage: unchanged (~₹3/min of conversation; brain currently promo-free)</li>
+            <li>Play Store: not needed - sideloaded APK; optional later ($25 one-time)</li>
+            <li>Dev tooling: ₹0 (Android Studio, open-source models)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RISKS ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">6 &middot; Risks and their mitigations</h2>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+        <tbody>
+          <tr><td>AEC too weak on a budget phone &rarr; Suhani transcribes herself, barge-in breaks</td><td><span class="badge badge-error badge-soft">high</span></td><td>Spike S1 is first and has a numeric bar; fallback is webrtc-audio-processing (the same AEC Chrome uses); worst case, half-duplex mode (mic gated while she speaks) - degraded but safe</td></tr>
+          <tr><td>Turn-taking feels worse than the LiveKit stack in the noisy workroom</td><td><span class="badge badge-warning badge-soft">medium</span></td><td>The 5a layered stack (Sarvam VAD + completeness heuristics + speculative cancel) is tunable rule-by-rule; S2 bake-off picks the winning config on real Hindi/Marwari clips; the Phase 4 benchmark blocks mom's session on false-cutoff regressions</td></tr>
+          <tr><td>Phone dies/lost = ledger gone</td><td><span class="badge badge-error badge-soft">high</span></td><td>Nightly backup off-device (Q3: Drive and/or Sheets mirror) from day one of real data; restore path tested before mom touches it</td></tr>
+          <tr><td>Sarvam API key lives on the device</td><td><span class="badge badge-info badge-soft">low</span></td><td>Spend-capped, revocable key; backup key already exists; one trusted phone, not a public app</td></tr>
+          <tr><td>Mobile network blips mid-conversation</td><td><span class="badge badge-warning badge-soft">medium</span></td><td>WS auto-reconnect with state resume; honest UI caption (the webapp's "Network dropped" pattern); she's on home WiFi</td></tr>
+          <tr><td>OEM battery manager kills the reminder worker</td><td><span class="badge badge-info badge-soft">low</span></td><td>WorkManager + exact alarms + one-time battery-optimization exemption on install; conversation itself is foreground and safe</td></tr>
+          <tr><td>Two stacks during development</td><td><span class="badge badge-info badge-soft">low</span></td><td>Server stack is frozen from P1, used only as the P4 measuring stick, deleted after mom's first clean week - mom never used it, so nothing depends on it</td></tr>
+          <tr><td>Sarvam outage = Suhani mute (true today as well)</td><td><span class="badge badge-info badge-soft">low</span></td><td>Same as today: Hindi error line + retry; ledger view still works offline, which the PWA could not offer</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ DECISIONS ============ -->
+  <section class="space-y-4">
+    <h2 class="text-2xl font-bold">7 &middot; Decisions - all locked (2 Aug 2026)</h2>
+    <div class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100">
+      <table class="table table-zebra table-sm">
+        <thead><tr><th>Decision</th><th>Your call</th><th>Effect on the plan</th></tr></thead>
+        <tbody>
+          <tr><td>Q1 &middot; Proceed</td><td><span class="badge badge-success">Full send</span></td><td>All phases approved; spikes run first and roll straight into Phase 1 when green</td></tr>
+          <tr><td>Q2 &middot; UI</td><td><span class="badge badge-success">Faithful aura port</span></td><td>AGSL shader port of the webapp orb; POCO X6 (Android 16) handles it natively</td></tr>
+          <tr><td>Q3 &middot; Backup</td><td><span class="badge badge-warning badge-soft">Local-only for now</span></td><td>Nightly on-device backups, keep 14. Flagged: revisit before mom's real बही accumulates - until then a lost phone is the only copy</td></tr>
+          <tr><td>Q4 &middot; Runtime</td><td><span class="badge badge-success">Clean Kotlin port</span></td><td>No Chaquopy; equivalence proven by mirroring all 44 ledger tests as the P1 exit gate</td></tr>
+          <tr><td>Q5 &middot; Mom's phone</td><td><span class="badge badge-success">POCO X6 5G, Android 16</span></td><td>min SDK 33, AGSL yes, ONNX comfortable, S1's AEC bar must pass on this device</td></tr>
+          <tr><td>Turn-taking (your freeform concern)</td><td><span class="badge badge-warning badge-soft">Sarvam-first, model demoted</span></td><td>Smart Turn's 93.44% Hindi accuracy confirmed your doubt; replaced as primary by the 5a layered stack (Sarvam VAD + completeness heuristics + speculative cancel), with Smart Turn behind a flag only if S2 proves it helps</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-sm opacity-70">Annotate anything on this page if you want a change; otherwise the build starts with the Phase 0 spike APKs.</p>
+  </section>
+  <footer class="text-xs opacity-50 pb-8">
+    Design: matched to the project's existing Lavish artifacts (DaisyUI luxury). Evidence: live WS tests with the production Sarvam key (2026-08-02), plugin source inspection (livekit-plugins-sarvam 1.6.7), LiveKit eot-bench, Smart Turn v3 release notes, Sarvam docs/changelog. Mom never used the server version (confirmed by Surya), so the plan has no migration - the Docker/LiveKit stack serves only as the Phase 4 quality benchmark.
+  </footer>
+</main>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.esm.min.mjs";
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const paint = document.createElement("canvas").getContext("2d");
+  function toRgba(color) {
+    paint.clearRect(0, 0, 1, 1);
+    paint.fillStyle = "#000";
+    paint.fillStyle = color;
+    paint.fillRect(0, 0, 1, 1);
+    return paint.getImageData(0, 0, 1, 1).data;
+  }
+  function compositeRgba(foreground, background) {
+    const fa = foreground[3] / 255, ba = background[3] / 255;
+    const a = fa + ba * (1 - fa);
+    if (a === 0) return [0, 0, 0, 0];
+    return [
+      (foreground[0] * fa + background[0] * ba * (1 - fa)) / a,
+      (foreground[1] * fa + background[1] * ba * (1 - fa)) / a,
+      (foreground[2] * fa + background[2] * ba * (1 - fa)) / a,
+      a * 255,
+    ];
+  }
+  function pageIsDark() {
+    const root = document.documentElement;
+    const rootBackground = toRgba(getComputedStyle(root).backgroundColor);
+    const bodyBackground = document.body ? toRgba(getComputedStyle(document.body).backgroundColor) : [0, 0, 0, 0];
+    const [r, g, b, a] = compositeRgba(bodyBackground, rootBackground);
+    if (a > 0) return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5;
+    const colorScheme = getComputedStyle(root).colorScheme;
+    if (colorScheme.includes("dark") && !colorScheme.includes("light")) return true;
+    if (colorScheme.includes("light") && !colorScheme.includes("dark")) return false;
+    return darkQuery.matches;
+  }
+  const diagrams = [...document.querySelectorAll(".mermaid")].map((el) => ({ el, src: el.textContent }));
+  let applied, rendering = false, queued = false;
+  function queueRender() { queued = true; if (!rendering) void render(); }
+  async function render() {
+    rendering = true;
+    try {
+      while (queued) {
+        queued = false;
+        const theme = pageIsDark() ? "dark" : "default";
+        if (theme === applied) continue;
+        mermaid.initialize({ startOnLoad: false, theme, securityLevel: "strict" });
+        for (const { el, src } of diagrams) { el.removeAttribute("data-processed"); el.textContent = src; }
+        try { await mermaid.run({ nodes: diagrams.map((d) => d.el) }); }
+        catch (error) { console.error("Mermaid diagram render failed:", error); return; }
+        applied = theme;
+      }
+    } finally {
+      rendering = false;
+      if (queued) queueRender();
+    }
+  }
+  if (document.readyState === "complete") queueRender();
+  else window.addEventListener("load", queueRender, { once: true });
+  const themeObserver = new MutationObserver(queueRender);
+  for (const el of [document.documentElement, document.body]) {
+    if (!el) continue;
+    themeObserver.observe(el, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+  }
+  document.addEventListener("change", queueRender, true);
+  document.addEventListener("transitionend", ({ propertyName }) => { if (propertyName === "background-color") queueRender(); }, true);
+  darkQuery.addEventListener("change", queueRender);
+</script>
+</body>
+</html>

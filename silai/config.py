@@ -27,6 +27,15 @@ SARVAM_CHAT_MODEL = os.environ.get("SARVAM_CHAT_MODEL", "sarvam-105b")
 SARVAM_CHAT_BASE_URL = os.environ.get("SARVAM_CHAT_BASE_URL", "https://api.sarvam.ai/v1")
 SARVAM_CHAT_EFFORT = os.environ.get("SARVAM_CHAT_EFFORT", "low")
 SARVAM_CHAT_MAX_TOKENS = int(os.environ.get("SARVAM_CHAT_MAX_TOKENS", "1024"))
+
+# Sarvam speech models. Saaras v4 (Epoch launch, live on the API by 2026-08-02)
+# beat v3 on our own domain sample - v3 garbled "सिलाई बही", v4 did not - and
+# claims big gains on noisy audio, which her workroom is. Bulbul v4 was
+# announced at the same event but the TTS API still rejects it; flip
+# SARVAM_TTS_MODEL the day it lands (re-audition the voice first - v4 speakers
+# may sound different).
+SARVAM_STT_MODEL = os.environ.get("SARVAM_STT_MODEL", "saaras:v4")
+SARVAM_TTS_MODEL = os.environ.get("SARVAM_TTS_MODEL", "bulbul:v3")
 VOICE_SPEAKER = os.environ.get("VOICE_SPEAKER", "simran")
 VOICE_PACE = float(os.environ.get("VOICE_PACE", "1.05"))
 VOICE_TEMPERATURE = float(os.environ.get("VOICE_TEMPERATURE", "0.75"))

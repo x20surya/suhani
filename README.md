@@ -5,7 +5,7 @@ One button, speak in Hindi/Hinglish: orders, dues, and delivery dates go into th
 
 ## Architecture
 
-- **Ears:** Sarvam Saaras v3 streaming STT (Hinglish codemix mode)
+- **Ears:** Sarvam Saaras v4 streaming STT (Hinglish codemix mode)
 - **Brain:** Sarvam-105B, tool-calling over the ledger (`BRAIN=sarvam`, the default)
 - **Voice:** Sarvam Bulbul v3 streaming TTS (speaker `suhani`, pace and expressiveness tunable)
 - **Call transport:** LiveKit Agents + LiveKit Cloud (WebRTC, barge-in, turn detection)

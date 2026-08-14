@@ -8,7 +8,8 @@ Target device: POCO X6 5G (Android 16, HyperOS), sideloaded debug APK.
 
 - `suhani-app/` - the PRODUCTION app. Kotlin, plain Views, minSdk 33, arm64-only. Everything runs on-device except Sarvam API calls (Saaras v4 STT, Sarvam-105B brain, Bulbul v3 TTS).
 - `silai/` - Python mirror + test harness. Used to gauntlet-test prompts and mirror ledger logic for parity tests. NOT production.
-- `web/`, `webapp/`, `deploy/` - the old LiveKit/Docker server stack. FROZEN, kept only as a quality benchmark. Do not extend it.
+- `deploy/` - leftover from the old LiveKit/Docker server stack. Dead. `web/` and `webapp/` (the React PWA and its build output) were deleted when the Android app took over; recover them from git history if the benchmark is ever needed. Do not extend any of it.
+- `silai/web.py` and `config.WEB_DIR` still point at the deleted `web/` directory, so `.\dev.ps1 web` will fail at startup. Harness commands (`test`, `chat`, `smoke`) are unaffected.
 - `suhani.apk` at repo root - the current build artifact. Refresh it after every build.
 
 ## Build and test

@@ -9,3 +9,8 @@ node_modules/
 
 # web/ is Vite build output from webapp/ and IS committed on purpose:
 # it lets the aarch64 VPS build the Docker image without Node.
+
+# never commit a filled-in env, under any name
+.env.bak*
+.env.*.bak
+.env.local

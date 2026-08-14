@@ -53,6 +53,60 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(this@MainActivity, app.suhani.ui.SettingsActivity::class.java))
             }
         })
+        root.addView(Button(this).apply {
+            text = "Error log"
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, app.suhani.ui.LogActivity::class.java))
+            }
+        })
+        root.addView(Button(this).apply {
+            text = "Alarm permission (Alarms & reminders)"
+            setOnClickListener {
+                runCatching {
+                    startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                            android.net.Uri.parse("package:$packageName"),
+                        ),
+                    )
+                }.onFailure {
+                    startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:$packageName"),
+                        ),
+                    )
+                }
+            }
+        })
+        root.addView(Button(this).apply {
+            text = "Full-screen alarm permission"
+            setOnClickListener {
+                runCatching {
+                    startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                            android.net.Uri.parse("package:$packageName"),
+                        ),
+                    )
+                }.onFailure {
+                    startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.parse("package:$packageName"),
+                        ),
+                    )
+                }
+            }
+        })
+        root.addView(Button(this).apply {
+            text = "Test 8am reminder now"
+            setOnClickListener {
+                androidx.work.WorkManager.getInstance(this@MainActivity).enqueue(
+                    androidx.work.OneTimeWorkRequest.from(app.suhani.BriefingWorker::class.java),
+                )
+            }
+        })
         if (app.suhani.Keys.sarvam(this).isBlank()) {
             root.addView(TextView(this).apply {
                 text = "WARNING: SARVAM_API_KEY missing (built without repo .env)"

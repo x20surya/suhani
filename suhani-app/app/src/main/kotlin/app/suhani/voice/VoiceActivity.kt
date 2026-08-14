@@ -103,8 +103,27 @@ class VoiceActivity : AppCompatActivity() {
             val size = Ui.dp(this@VoiceActivity, 270)
             layoutParams = FrameLayout.LayoutParams(size, size, Gravity.CENTER)
             setAgentState("idle")
-            setOnClickListener {
-                if (!live) permission.launch(Manifest.permission.RECORD_AUDIO)
+            // Walkie-talkie orb: tap starts the session; while live, HOLD to
+            // speak, release to send. One conversation, many holds - the brain
+            // keeps full context across turns.
+            setOnTouchListener { v, ev ->
+                when (ev.actionMasked) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        if (live) ConversationService.engine?.holdStart()
+                        true
+                    }
+                    android.view.MotionEvent.ACTION_UP,
+                    android.view.MotionEvent.ACTION_CANCEL -> {
+                        if (!live) {
+                            permission.launch(Manifest.permission.RECORD_AUDIO)
+                        } else {
+                            ConversationService.engine?.holdEnd()
+                        }
+                        v.performClick()
+                        true
+                    }
+                    else -> true
+                }
             }
         }
         stage.addView(aura)
@@ -153,14 +172,16 @@ class VoiceActivity : AppCompatActivity() {
                             ConversationEngine.State.LISTENING -> "listening"
                             ConversationEngine.State.THINKING -> "thinking"
                             ConversationEngine.State.SPEAKING -> "speaking"
+                            ConversationEngine.State.MUTED -> "muted"
                             else -> "idle"
                         },
                     )
                     stateCaption.text = when (state) {
-                        ConversationEngine.State.IDLE -> "Tap to talk"
-                        ConversationEngine.State.LISTENING -> "Listening"
+                        ConversationEngine.State.IDLE -> "Waking Suhani..."
+                        ConversationEngine.State.LISTENING -> "Listening - release when done"
                         ConversationEngine.State.THINKING -> "Thinking..."
                         ConversationEngine.State.SPEAKING -> "Suhani is speaking"
+                        ConversationEngine.State.MUTED -> "Hold the orb and speak"
                         ConversationEngine.State.ERROR -> "Something went wrong - tap again"
                     }
                 }
@@ -210,10 +231,15 @@ class VoiceActivity : AppCompatActivity() {
                 val overdue = b["overdue"] as List<Map<String, Any?>>
                 @Suppress("UNCHECKED_CAST")
                 val pending = b["money_pending"] as List<Map<String, Any?>>
+                @Suppress("UNCHECKED_CAST")
+                val upcoming = (b["upcoming"] as? List<Map<String, Any?>>).orEmpty()
                 buildList {
                     if (dueToday.isEmpty() && overdue.isEmpty()) add("Nothing due today" to "")
                     for (o in dueToday) add("${o["client_name"]} - ${o["garment"]}" to "today")
                     for (o in overdue) add("${o["client_name"]} - ${o["garment"]}" to "late")
+                    for (o in upcoming.take(3)) {
+                        add("${o["client_name"]} - ${o["garment"]}" to (o["due_date"] as? String ?: ""))
+                    }
                     val due = pending.sumOf { (it["due"] as Number).toDouble() }
                     if (due > 0) add("Money pending" to "₹${due.toInt()}")
                 }
@@ -241,6 +267,46 @@ class VoiceActivity : AppCompatActivity() {
         aura.setAgentState("idle")
         endButton.visibility = android.view.View.GONE
         loadBriefing()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        loadBriefing()
+        // Exact-alarm access is a special grant Android never prompts for on
+        // its own - without it, spoken reminders drift or die. Ask ONCE by
+        // opening the settings page; re-arm all alarms whenever we return.
+        app.suhani.AppLog.i("suhani.alarm", "canScheduleExactAlarms=${ReminderScheduler.canExact(this)}")
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            val nm = getSystemService(android.app.NotificationManager::class.java)
+            app.suhani.AppLog.i("suhani.alarm", "canUseFullScreenIntent=${nm.canUseFullScreenIntent()}")
+        }
+        if (!ReminderScheduler.canExact(this)) {
+            val prefs = getSharedPreferences("suhani_ui", MODE_PRIVATE)
+            if (!prefs.getBoolean("asked_exact_alarm", false)) {
+                prefs.edit().putBoolean("asked_exact_alarm", true).apply()
+                runCatching {
+                    startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                            android.net.Uri.parse("package:$packageName"),
+                        ),
+                    )
+                }
+            }
+        }
+        Thread { runCatching { ReminderScheduler.sync(this) } }.start()
+        // Suhani is ready the moment the app opens - no tap-to-start step.
+        // Safe because hold-to-talk keeps the mic muted until the orb is held:
+        // nothing streams, nothing leaks, nothing bills while idle.
+        if (!live) {
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                startConversation()
+            } else {
+                permission.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
     }
 
     override fun onDestroy() {

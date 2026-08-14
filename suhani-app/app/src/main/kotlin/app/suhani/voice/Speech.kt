@@ -26,6 +26,8 @@ class Speech(
         const val RATE = 24000
         val FILLER_WRITE = listOf("हाँ, लिखती हूँ...", "ठीक है, लिख रही हूँ...")
         const val ERROR_LINE = "माफ़ कीजिए, थोड़ी दिक्कत आ गई। एक बार फिर बोलिए।"
+        const val ERROR_CREDITS = "API के पैसे ख़त्म हो गए लगते हैं। ज़रा recharge करवा लीजिए।"
+        const val ERROR_KEY = "API key ग़लत लग रही है। Settings में key बदलिए।"
     }
 
     /** Synthesize text -> raw 24k mono PCM16 (wav header stripped). */
@@ -113,7 +115,7 @@ class Speech(
                             }
                             "event", "error" -> {
                                 if (msg.optString("type") == "error") {
-                                    android.util.Log.w("suhani.tts", "ws error: ${msgText.take(160)}")
+                                    app.suhani.AppLog.w("suhani.tts", "ws error: ${msgText.take(160)}")
                                     if (collected.size() == 0) failedBeforeAudio = true
                                 }
                                 queue.put(End)
@@ -123,7 +125,11 @@ class Speech(
                 }
 
                 override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
-                    android.util.Log.w("suhani.tts", "ws failure: ${t.message}")
+                    // "Socket closed" AFTER a finished utterance is normal
+                    // teardown, not a failure worth logging.
+                    if (!finished && !stopped.get()) {
+                        app.suhani.AppLog.w("suhani.tts", "ws failure: ${t.message}")
+                    }
                     if (collected.size() == 0) failedBeforeAudio = true
                     queue.put(End)
                 }

@@ -244,6 +244,26 @@ def openai_toolset(with_date_guards: bool = True) -> list[dict]:
                 t["description"] += " 'इस हफ़्ते' = आज से आने वाले रविवार तक।"
         ts.append(RESOLVE_DATE_TOOL)
     ts.append({
+        "name": "set_reminder",
+        "description": ("मालकिन को याद दिलाने का reminder लगाओ - तय समय पर app जग कर बोल कर याद दिलाएगा। "
+                        "दिन और समय दोनों ज़रूरी - समय ना हो तो पहले पूछो \"कब याद दिलाऊँ?\" "
+                        "(सुबह=08:00, दोपहर=13:00, शाम=18:00, रात=20:00)।"),
+        "input_schema": {"type": "object", "properties": {
+            "content": {"type": "string"}, "date": {"type": "string"}, "time": {"type": "string"}},
+            "required": ["content", "date", "time"], "additionalProperties": False},
+    })
+    ts.append({
+        "name": "list_reminders",
+        "description": "आने वाले सब reminders दिखाओ।",
+        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    })
+    ts.append({
+        "name": "cancel_reminder",
+        "description": "कोई reminder हटाओ - id list_reminders से।",
+        "input_schema": {"type": "object", "properties": {"reminder_id": {"type": "integer"}},
+                         "required": ["reminder_id"], "additionalProperties": False},
+    })
+    ts.append({
         "name": "end_conversation",
         "description": ("बातचीत ख़त्म करो। मालकिन बात समेट दें (\"ठीक है अभी के लिए\", \"चलो अभी कुछ नहीं\") "
                         "तो यह चलाओ और साथ के जवाब में छोटा विदा-वाक्य बोलो। बीच काम में कभी नहीं।"),
@@ -261,6 +281,13 @@ def dispatch(ledger: Ledger, name: str, args: dict[str, Any]) -> str:
             return resolve_due_date(args)
         if name == "end_conversation":
             return json.dumps({"ok": True, "note": "विदा बोलिए, app बंद हो जाएगा"}, ensure_ascii=False)
+        if name == "set_reminder":
+            result = ledger.add_reminder(args["content"], f'{args["date"]}T{args["time"]}')
+            return json.dumps(result, ensure_ascii=False)
+        if name == "list_reminders":
+            return json.dumps({"reminders": ledger.list_reminders()}, ensure_ascii=False)
+        if name == "cancel_reminder":
+            return json.dumps(ledger.cancel_reminder(args["reminder_id"]), ensure_ascii=False)
         if name == "find_client":
             matches = ledger.find_client(args["name"])
             # Remember successful hearings as aliases so matching improves over time.

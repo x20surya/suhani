@@ -96,6 +96,8 @@ class Brain(
             val toolIds = HashMap<Int, String>()
             val toolNames = HashMap<Int, String>()
             val toolArgs = HashMap<Int, StringBuilder>()
+            val slotFor = HashMap<Int, Int>() // stream index -> logical call slot
+            var nextSlot = 0
             var sawTool = false
             while (true) {
                 val line = source.readUtf8Line() ?: break
@@ -120,19 +122,44 @@ class Brain(
                     sawTool = true
                     for (i in 0 until fragments.length()) {
                         val frag = fragments.getJSONObject(i)
-                        val idx = frag.optInt("index", i)
+                        val streamIdx = frag.optInt("index", i)
+                        // Sarvam sometimes REUSES index 0 for a brand-new call
+                        // (its known "{}{}" flake). A fresh id on an index that
+                        // already accumulated arguments = a new logical call -
+                        // without this, two calls' arguments concatenate into
+                        // invalid JSON that 400s every following turn.
+                        val hasNewId = !frag.isNull("id") && frag.optString("id").isNotEmpty()
+                        if (hasNewId && (toolArgs[slotFor.getOrDefault(streamIdx, -1)]?.isNotEmpty() == true)) {
+                            slotFor[streamIdx] = nextSlot++
+                        } else if (!slotFor.containsKey(streamIdx)) {
+                            slotFor[streamIdx] = nextSlot++
+                        }
+                        val idx = slotFor[streamIdx]!!
                         // Continuation fragments carry JSON null id/name, which
                         // optString would turn into the literal string "null" -
                         // guard with isNull or the real values get clobbered.
-                        if (!frag.isNull("id")) {
-                            frag.optString("id").takeIf { it.isNotEmpty() }?.let { toolIds[idx] = it }
-                        }
+                        if (hasNewId) toolIds[idx] = frag.optString("id")
                         frag.optJSONObject("function")?.let { fn ->
                             if (!fn.isNull("name")) {
                                 fn.optString("name").takeIf { it.isNotEmpty() }?.let { toolNames[idx] = it }
                             }
                             if (!fn.isNull("arguments")) {
-                                toolArgs.getOrPut(idx) { StringBuilder() }.append(fn.optString("arguments"))
+                                val piece = fn.optString("arguments")
+                                var sb = toolArgs.getOrPut(idx) { StringBuilder() }
+                                // Second call on the SAME index with NO new id:
+                                // if what we have is already a complete object
+                                // and the new piece opens a fresh one, split
+                                // into a new logical call instead of gluing
+                                // "{...}{...}" into invalid JSON.
+                                if (sb.isNotEmpty() && piece.trimStart().startsWith("{") &&
+                                    strictJsonObject(sb.toString()) != null
+                                ) {
+                                    val newIdx = nextSlot++
+                                    slotFor[streamIdx] = newIdx
+                                    toolNames[newIdx] = toolNames[idx] ?: ""
+                                    sb = toolArgs.getOrPut(newIdx) { StringBuilder() }
+                                }
+                                sb.append(piece)
                             }
                         }
                     }
@@ -191,7 +218,16 @@ class Brain(
                     }
                 }
             }
-            var msg = call(onDelta)
+            // One silent retry on transient network failures - a mid-stream
+            // socket timeout used to kill the whole turn and force मालकिन to
+            // repeat herself. If the first sentence already went to TTS, the
+            // retry streams without the early callback (the engine falls back
+            // cleanly when the regenerated reply differs).
+            var msg = try {
+                call(onDelta)
+            } catch (e: java.io.IOException) {
+                call(if (sentenceFired) null else onDelta)
+            }
             // org.json's optString turns a JSON null into the literal string
             // "null" - which then gets SPOKEN. Treat null as empty everywhere.
             fun contentOf(m: org.json.JSONObject): String {
@@ -262,12 +298,37 @@ class Brain(
         }
     }
 
+    /** STRICT JSON-object check: org.json is lenient and accepts trailing
+     * garbage ("{}{}" parses!), but Sarvam's validator does not - so validity
+     * must mean "one object, nothing after it", and output is canonicalized. */
+    internal fun strictJsonObject(s: String): JSONObject? {
+        return try {
+            val tokener = org.json.JSONTokener(s)
+            val v = tokener.nextValue()
+            if (v is JSONObject && !tokener.more()) v else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun sanitize(msg: JSONObject): JSONObject {
         // Keep only the fields the API round-trips cleanly (model_dump(exclude_none)).
         val out = JSONObject().put("role", msg.optString("role", "assistant"))
         if (!msg.isNull("content")) out.put("content", msg.optString("content"))
         val tc = msg.optJSONArray("tool_calls")
-        if (tc != null && tc.length() > 0) out.put("tool_calls", tc)
+        if (tc != null && tc.length() > 0) {
+            // History self-repair: the server VALIDATES arguments as JSON on
+            // every later request - one malformed string would 400 the whole
+            // conversation forever. Repair to "{}" rather than poison history.
+            for (i in 0 until tc.length()) {
+                val fn = tc.getJSONObject(i).optJSONObject("function") ?: continue
+                val strict = strictJsonObject(fn.optString("arguments"))
+                // Canonical re-serialization even when valid - it scrubs every
+                // lenient-parse quirk the server would reject.
+                fn.put("arguments", strict?.toString() ?: "{}")
+            }
+            out.put("tool_calls", tc)
+        }
         return out
     }
 }

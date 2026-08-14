@@ -54,6 +54,14 @@ object SilaiSchema {
             content TEXT NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )""",
+        """CREATE TABLE IF NOT EXISTS reminders (
+            id INTEGER PRIMARY KEY,
+            content TEXT NOT NULL,
+            due_at TEXT NOT NULL,
+            audio_path TEXT,
+            done INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )""",
         "CREATE INDEX IF NOT EXISTS idx_orders_client ON orders(client_id)",
         "CREATE INDEX IF NOT EXISTS idx_orders_due ON orders(due_date)",
         "CREATE INDEX IF NOT EXISTS idx_payments_client ON payments(client_id)",

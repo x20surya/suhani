@@ -80,8 +80,12 @@ class LedgerActivity : AppCompatActivity() {
             "${p["client_name"]}  +₹${(p["amount"] as Number).toInt()}" to (p["created_at"] as String).take(10)
         }
         val notes = ledger.listNotes().map { n -> (n["content"] as String) to "#${n["id"]}" }
+        val reminders = ledger.listReminders().map { r ->
+            (r["content"] as String) to (r["due_at"] as String).replace('T', ' ')
+        }
         return listOf(
             "Open orders (${open.size})" to open.ifEmpty { listOf("None" to "") },
+            "Reminders (${reminders.size})" to reminders.ifEmpty { listOf("None set" to "") },
             "Money pending" to dues.ifEmpty { listOf("All settled" to "") },
             "Recent payments" to payments.ifEmpty { listOf("None yet" to "") },
             "Suhani's memories (${notes.size})" to notes.ifEmpty { listOf("None yet" to "") },

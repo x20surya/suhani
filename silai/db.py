@@ -39,6 +39,14 @@ CREATE TABLE IF NOT EXISTS notes (
     content TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS reminders (
+    id INTEGER PRIMARY KEY,
+    content TEXT NOT NULL,
+    due_at TEXT NOT NULL,
+    audio_path TEXT,
+    done INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS push_subs (
     id INTEGER PRIMARY KEY,
     subscription TEXT NOT NULL UNIQUE,

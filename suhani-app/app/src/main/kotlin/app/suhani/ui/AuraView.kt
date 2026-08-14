@@ -227,6 +227,13 @@ class AuraView(context: Context) : View(context) {
                 animators += animateTo({ frequency = it }, frequency, 1.25f)
                 animators += animateTo({ brightness = it }, brightness, 1.5f)
             }
+            "muted" -> { // dimmed, nearly still - visibly "not hearing you"
+                speed = 5f
+                animators += animateTo({ scale = it }, scale, 0.18f)
+                animators += animateTo({ amplitude = it }, amplitude, 0.9f)
+                animators += animateTo({ frequency = it }, frequency, 0.3f)
+                animators += animateTo({ brightness = it }, brightness, 0.4f)
+            }
             else -> { // idle / failed
                 speed = 10f
                 animators += animateTo({ scale = it }, scale, 0.2f)

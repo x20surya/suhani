@@ -13,9 +13,19 @@ import java.util.concurrent.TimeUnit
 object Warmup {
 
     /** One HTTP client for everything - shared connection pool means the
-     * brain's and TTS's TLS handshakes are paid once, then reused. */
+     * brain's and TTS's TLS handshakes are paid once, then reused.
+     * Timeouts tuned for streaming: OkHttp's default 10s read timeout was
+     * killing turns whenever the model paused (SocketTimeoutException, "tell
+     * it again"); ping keep-alive protects the idle WebSockets. */
     val http: OkHttpClient by lazy {
-        OkHttpClient.Builder().callTimeout(60, TimeUnit.SECONDS).build()
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .callTimeout(120, TimeUnit.SECONDS)
+            .pingInterval(20, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build()
     }
 
     @Volatile private var vad: SileroVad? = null

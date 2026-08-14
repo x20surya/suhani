@@ -141,6 +141,28 @@ object Tools {
                 obj("note_id" to p("integer"), required = listOf("note_id")),
             ),
             tool(
+                "set_reminder",
+                "मालकिन को किसी बात की याद दिलाने का reminder लगाओ - तय समय पर app जगेगा और तुम " +
+                    "बोल कर याद दिलाओगी। दिन और समय दोनों ज़रूरी हैं - समय ना बताया हो तो पहले पूछो " +
+                    "\"कब याद दिलाऊँ?\" (सुबह=08:00, दोपहर=13:00, शाम=18:00, रात=20:00)।",
+                obj(
+                    "content" to p("string", "किस बात की याद - छोटा वाक्य, जैसे 'सुनीता का ब्लाउज़ करना है'"),
+                    "date" to p("string", "ISO तारीख़ YYYY-MM-DD (calendar/resolve_due_date से)"),
+                    "time" to p("string", "24-घंटे HH:MM, जैसे 18:00"),
+                    required = listOf("content", "date", "time"),
+                ),
+            ),
+            tool(
+                "list_reminders",
+                "आने वाले सब reminders दिखाओ - मालकिन पूछें \"क्या-क्या याद दिलाना है?\" तो यह चलाओ।",
+                obj(),
+            ),
+            tool(
+                "cancel_reminder",
+                "कोई reminder हटाओ (\"वो याद रहने दो\") - id list_reminders से।",
+                obj("reminder_id" to p("integer"), required = listOf("reminder_id")),
+            ),
+            tool(
                 "end_conversation",
                 "बातचीत ख़त्म करो। मालकिन बात समेट दें (\"ठीक है अभी के लिए\", \"चलो अभी कुछ नहीं\", " +
                     "\"बस इतना ही\", \"रखती हूँ\") तो यह चलाओ और साथ के जवाब में छोटा गर्म विदा-वाक्य बोलो - " +
@@ -209,6 +231,12 @@ object Tools {
                 "resolve_due_date" -> return resolveDueDate(args)
                 "end_conversation" ->
                     mapOf("ok" to true, "note" to "विदा बोलिए, app बंद हो जाएगा")
+                "set_reminder" -> ledger.addReminder(
+                    args.getString("content"),
+                    "${args.getString("date")}T${args.getString("time")}",
+                )
+                "list_reminders" -> mapOf("reminders" to ledger.listReminders())
+                "cancel_reminder" -> ledger.cancelReminder(args.getLong("reminder_id"))
                 "find_client" -> {
                     val matches = ledger.findClient(args.getString("name"))
                     if (matches.size == 1) {

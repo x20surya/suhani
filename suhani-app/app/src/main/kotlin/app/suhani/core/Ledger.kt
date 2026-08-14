@@ -21,7 +21,17 @@ class Ledger(private val db: SqlDriver) {
         const val MATCH_THRESHOLD = 0.72
         const val MAX_NOTES = 40
         const val MAX_NOTES_CHARS = 3000
+        val VALID_STATUSES = setOf("open", "done", "delivered", "cancelled")
         private val FILLER_TOKENS = setOf("val", "vala", "vale", "ji")
+
+        /** ISO date or error - a garbled due_date would otherwise silently
+         * fall out of every briefing/due query instead of failing loudly. */
+        fun requireIsoDate(value: String, field: String): String {
+            require(runCatching { LocalDate.parse(value) }.isSuccess) {
+                "$field ISO तारीख़ (YYYY-MM-DD) में होनी चाहिए, मिला: $value"
+            }
+            return value
+        }
 
         fun normTokens(text: String): Set<String> =
             text.split(Regex("\\s+")).filter { it.isNotBlank() }
@@ -52,6 +62,7 @@ class Ledger(private val db: SqlDriver) {
     // ---------- clients ----------
 
     fun addClient(name: String, phone: String? = null): Map<String, Any?> {
+        require(name.isNotBlank()) { "ग्राहक का नाम खाली नहीं हो सकता" }
         val norm = Translit.normalize(name)
         val dup = db.query("SELECT id FROM clients WHERE name_norm=?", listOf(norm)).firstOrNull()
         if (dup != null) {
@@ -130,6 +141,13 @@ class Ledger(private val db: SqlDriver) {
         advance: Double = 0.0,
         notes: String? = null,
     ): Map<String, Any?> {
+        // Money invariants: a flaked tool call must ERROR here, never write
+        // silently-wrong records into मालकिन's बही.
+        require(garment.isNotBlank()) { "कपड़े का नाम खाली नहीं हो सकता" }
+        require(price > 0) { "दाम शून्य से ज़्यादा होना चाहिए, मिला: $price" }
+        require(advance >= 0) { "एडवांस negative नहीं हो सकता: $advance" }
+        require(advance <= price) { "एडवांस ($advance) दाम ($price) से ज़्यादा नहीं हो सकता" }
+        dueDate?.let { requireIsoDate(it, "due_date") }
         getClient(clientId) // validates
         val dup = db.query(
             """SELECT id FROM orders WHERE client_id=? AND garment=? AND price=?
@@ -170,6 +188,11 @@ class Ledger(private val db: SqlDriver) {
         notes: String? = null,
         status: String? = null,
     ): Map<String, Any?> {
+        status?.let {
+            require(it in VALID_STATUSES) { "status इनमें से हो: ${VALID_STATUSES.joinToString()}, मिला: $it" }
+        }
+        price?.let { require(it > 0) { "दाम शून्य से ज़्यादा होना चाहिए, मिला: $it" } }
+        dueDate?.let { requireIsoDate(it, "due_date") }
         val order = getOrder(orderId)
         var deliveredAt = order["delivered_at"] as? String
         if (status == "delivered" && deliveredAt == null) {
@@ -250,7 +273,25 @@ class Ledger(private val db: SqlDriver) {
         orderId: Long? = null,
         note: String? = null,
     ): Map<String, Any?> {
+        require(amount > 0) { "रकम शून्य से ज़्यादा होनी चाहिए, मिली: $amount" }
         getClient(clientId)
+        // Idempotency: a double-fired identical payment within 2 minutes is a
+        // duplicate (voice-loop retry), not a second payment. Compared via the
+        // window SUM because FIFO allocation splits one spoken payment across
+        // order rows, so no single row matches the call's signature.
+        val recentSum = (
+            db.query(
+                """SELECT COALESCE(SUM(amount), 0) AS s FROM payments
+                   WHERE client_id=? AND created_at > datetime('now','-120 seconds')""",
+                listOf(clientId),
+            ).first()["s"] as Number
+        ).toDouble()
+        if (recentSum > 0 && recentSum == amount) {
+            return mapOf(
+                "client" to getClient(clientId), "paid" to amount,
+                "due_left" to clientDue(clientId), "duplicate_ignored" to true,
+            )
+        }
         if (orderId != null) {
             db.insert(
                 "INSERT INTO payments (client_id, order_id, amount, note) VALUES (?, ?, ?, ?)",
@@ -324,15 +365,71 @@ class Ledger(private val db: SqlDriver) {
         return pruned
     }
 
+    // ---------- reminders (मालकिन's "याद दिलाना") ----------
+
+    fun addReminder(content: String, dueAt: String): Map<String, Any?> {
+        require(content.isNotBlank()) { "याद की बात खाली नहीं हो सकती" }
+        val parsed = runCatching { java.time.LocalDateTime.parse(dueAt) }.getOrNull()
+        require(parsed != null) { "due_at ISO datetime (YYYY-MM-DDTHH:MM) चाहिए, मिला: $dueAt" }
+        require(parsed.isAfter(java.time.LocalDateTime.now(IST))) { "याद दिलाने का समय बीत चुका है: $dueAt" }
+        // Idempotency: a multi-fired tool call must not set the same reminder
+        // thrice (it happened - three चाय पीना है at the same minute).
+        val dup = db.query(
+            "SELECT id FROM reminders WHERE content=? AND due_at=? AND done=0",
+            listOf(content.trim(), dueAt),
+        ).firstOrNull()
+        if (dup != null) {
+            return mapOf(
+                "id" to (dup["id"] as Number).toLong(), "content" to content.trim(),
+                "due_at" to dueAt, "duplicate_ignored" to true,
+            )
+        }
+        val id = db.insert("INSERT INTO reminders (content, due_at) VALUES (?, ?)", listOf(content.trim(), dueAt))
+        return mapOf("id" to id, "content" to content.trim(), "due_at" to dueAt)
+    }
+
+    fun listReminders(pendingOnly: Boolean = true): List<Map<String, Any?>> =
+        db.query(
+            "SELECT * FROM reminders ${if (pendingOnly) "WHERE done=0" else ""} ORDER BY due_at",
+        )
+
+    fun cancelReminder(id: Long): Map<String, Any?> {
+        val n = db.exec("UPDATE reminders SET done=1 WHERE id=? AND done=0", listOf(id))
+        return mapOf("cancelled" to (n == 1), "reminder_id" to id)
+    }
+
+    fun getReminder(id: Long): Map<String, Any?>? =
+        db.query("SELECT * FROM reminders WHERE id=?", listOf(id)).firstOrNull()
+
+    fun markReminderDone(id: Long) {
+        db.exec("UPDATE reminders SET done=1 WHERE id=?", listOf(id))
+    }
+
+    fun setReminderAudio(id: Long, path: String) {
+        db.exec("UPDATE reminders SET audio_path=? WHERE id=?", listOf(path, id))
+    }
+
+    fun snoozeReminder(id: Long, minutes: Long): Map<String, Any?>? {
+        val r = getReminder(id) ?: return null
+        val newAt = java.time.LocalDateTime.now(IST).plusMinutes(minutes)
+            .withSecond(0).withNano(0).toString()
+        db.exec("UPDATE reminders SET due_at=?, done=0 WHERE id=?", listOf(newAt, id))
+        return getReminder(id)
+    }
+
     // ---------- briefing ----------
 
     fun dailyBriefing(today: String? = null): Map<String, Any?> {
         val t = today ?: today()
-        val tomorrow = LocalDate.parse(t).plusDays(1).toString()
+        val date = LocalDate.parse(t)
+        val tomorrow = date.plusDays(1).toString()
         return mapOf(
             "date" to t,
             "due_today" to ordersDue(t, t),
             "due_tomorrow" to ordersDue(tomorrow, tomorrow),
+            // Without this, a Friday order was INVISIBLE to "आज क्या काम है?" -
+            // Suhani would say "nothing today" while work sat 4 days out.
+            "upcoming" to ordersDue(date.plusDays(2).toString(), date.plusDays(14).toString()),
             "overdue" to overdueOrders(t),
             "money_pending" to allDues(),
         )

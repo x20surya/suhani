@@ -357,15 +357,51 @@ class Ledger:
             self.conn.commit()
         return pruned
 
+    # ---------- reminders (mirror of the Kotlin feature, for harness parity) ----------
+
+    def add_reminder(self, content: str, due_at: str) -> dict:
+        content = content.strip()
+        if not content:
+            raise ValueError("याद की बात खाली नहीं हो सकती")
+        dt.datetime.fromisoformat(due_at)  # validates
+        dup = self.conn.execute(
+            "SELECT id FROM reminders WHERE content=? AND due_at=? AND done=0",
+            (content, due_at),
+        ).fetchone()
+        if dup:
+            return {"id": dup["id"], "content": content, "due_at": due_at, "duplicate_ignored": True}
+        cur = self.conn.execute(
+            "INSERT INTO reminders (content, due_at) VALUES (?, ?)", (content, due_at)
+        )
+        self.conn.commit()
+        return {"id": cur.lastrowid, "content": content, "due_at": due_at}
+
+    def list_reminders(self) -> list[dict]:
+        return [dict(r) for r in self.conn.execute(
+            "SELECT * FROM reminders WHERE done=0 ORDER BY due_at")]
+
+    def cancel_reminder(self, reminder_id: int) -> dict:
+        cur = self.conn.execute(
+            "UPDATE reminders SET done=1 WHERE id=? AND done=0", (reminder_id,))
+        self.conn.commit()
+        return {"cancelled": cur.rowcount == 1, "reminder_id": reminder_id}
+
     # ---------- briefing ----------
 
     def daily_briefing(self, today: str | None = None) -> dict:
         today = today or dt.datetime.now(IST).date().isoformat()
-        tomorrow = (dt.date.fromisoformat(today) + dt.timedelta(days=1)).isoformat()
+        base = dt.date.fromisoformat(today)
+        tomorrow = (base + dt.timedelta(days=1)).isoformat()
         return {
             "date": today,
             "due_today": self.orders_due(today, today),
             "due_tomorrow": self.orders_due(tomorrow, tomorrow),
+            # Mirror of the Kotlin field: future orders were invisible to
+            # "आज क्या काम है?" without it.
+            "upcoming": self.orders_due(
+                (base + dt.timedelta(days=2)).isoformat(),
+                (base + dt.timedelta(days=14)).isoformat(),
+            ),
             "overdue": self.overdue_orders(today),
             "money_pending": self.all_dues(),
         }

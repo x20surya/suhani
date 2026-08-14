@@ -41,7 +41,7 @@ class ConversationEngine(
     private val scope: CoroutineScope,
     private val listener: Listener,
 ) {
-    enum class State { IDLE, LISTENING, THINKING, SPEAKING, ERROR }
+    enum class State { IDLE, LISTENING, THINKING, SPEAKING, MUTED, ERROR }
 
     interface Listener {
         fun onState(state: State)
@@ -61,6 +61,7 @@ class ConversationEngine(
         private const val FALSE_INTERRUPT_RESUME_MS = 2000L
     }
 
+    private val appContext = context.applicationContext
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val vad = Warmup.vad(context)
     private val speech = Speech(apiKey, context.cacheDir, Warmup.http)
@@ -72,6 +73,7 @@ class ConversationEngine(
     private val segmentPcm = ArrayList<Short>(16000 * 12)
     @Volatile private var foreignUntil = 0L
     @Volatile private var lastEndSpeechAt = 0L
+    @Volatile private var lastFinalAt = 0L
     @Volatile private var sessionEnding = false
     @Volatile private var blankFires = 0
 
@@ -93,9 +95,66 @@ class ConversationEngine(
     @Volatile private var interruptedPcm: ByteArray? = null
     private val turnBuffer = StringBuilder()
 
+    @Volatile
+    var micMuted = false
+        private set
+
+    /** Hard mic cutoff: while muted NOTHING reaches STT - मालकिन can turn to a
+     * customer without Suhani hearing a word. Pending turn-fires are cancelled;
+     * buffered Suhani-directed words survive the mute. */
+    fun setMuted(m: Boolean) {
+        if (micMuted == m) return
+        micMuted = m
+        if (m) {
+            fireJob?.cancel()
+            synchronized(segmentPcm) { segmentPcm.clear() }
+            localSpeech = false
+            if (state == State.LISTENING) setState(State.MUTED)
+            app.suhani.AppLog.i(TAG, "mic muted")
+        } else {
+            if (state == State.MUTED) setState(State.LISTENING)
+            app.suhani.AppLog.i(TAG, "mic unmuted")
+        }
+    }
+
+    fun toggleMute(): Boolean {
+        setMuted(!micMuted)
+        return micMuted
+    }
+
+    // ---------- hold-to-talk ----------
+    // The orb is a walkie-talkie: pressed = mic open, released = turn OVER.
+    // Deliberate by construction (no side-speech can leak), and faster too:
+    // release replaces the 500-1800ms end-of-turn wait entirely.
+
+    @Volatile private var pendingHoldFire = false
+
+    fun holdStart() {
+        pendingHoldFire = false
+        setMuted(false)
+    }
+
+    fun holdEnd() {
+        scope.launch(Dispatchers.IO) {
+            delay(900) // let the tail audio flush and its final arrive
+            setMuted(true)
+            fireJob?.cancel()
+            if (currentTurnText().isNotEmpty()) {
+                if (state == State.MUTED || state == State.LISTENING) fire()
+            } else {
+                // Final still in flight - fire the moment it lands.
+                pendingHoldFire = true
+                delay(2200)
+                pendingHoldFire = false
+            }
+        }
+    }
+
     private fun setState(s: State) {
-        state = s
-        listener.onState(s)
+        // While muted, "listening" is a lie - surface MUTED instead.
+        val effective = if (s == State.LISTENING && micMuted) State.MUTED else s
+        state = effective
+        listener.onState(effective)
     }
 
     private val apiKeyRef = apiKey
@@ -103,6 +162,7 @@ class ConversationEngine(
     fun start() {
         if (!running.compareAndSet(false, true)) return
         sessionEnding = false
+        micMuted = true // hold-to-talk: mic opens only while the orb is pressed
         vad.reset() // cached across sessions - state must not leak between them
         Warmup.preconnect()
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
@@ -130,6 +190,8 @@ class ConversationEngine(
             runCatching {
                 Speech.FILLER_WRITE.forEach { speech.fillerPcm(it) }
                 speech.fillerPcm(Speech.ERROR_LINE)
+                speech.fillerPcm(Speech.ERROR_CREDITS)
+                speech.fillerPcm(Speech.ERROR_KEY)
             }
         }
     }
@@ -155,7 +217,7 @@ class ConversationEngine(
             onTranscript = ::onFinal,
             onVadEvent = ::onServerVad,
             onError = { err ->
-                Log.w(TAG, "stt error: $err")
+                app.suhani.AppLog.w(TAG, "stt error: $err")
                 if (running.get()) {
                     scope.launch(Dispatchers.IO) {
                         delay(600)
@@ -188,6 +250,14 @@ class ConversationEngine(
             while (isActive && running.get()) {
                 val n = rec.read(window, 0, window.size)
                 if (n <= 0) continue
+                if (micMuted) {
+                    // Keep draining the mic (device stays warm) but let NOTHING
+                    // leave the phone - no STT, no VAD, no segments.
+                    batchFill = 0
+                    speechWindows = 0
+                    silenceWindows = 0
+                    continue
+                }
                 // Feed the uplink.
                 for (i in 0 until n) {
                     batch[batchFill++] = (window[i].toInt() and 0xFF).toByte()
@@ -258,11 +328,29 @@ class ConversationEngine(
 
     private fun onFinal(text: String) {
         if (SystemClock.elapsedRealtime() < foreignUntil) {
-            Log.i(TAG, "dropped foreign-speaker final: $text")
+            app.suhani.AppLog.i(TAG, "dropped foreign-speaker final: $text")
             return
         }
-        synchronized(turnBuffer) { turnBuffer.append(' ').append(text) }
+        val now = SystemClock.elapsedRealtime()
+        synchronized(turnBuffer) {
+            // A long silence means a NEW topic - stale words from an old,
+            // never-committed turn must not prefix it.
+            if (turnBuffer.isNotEmpty() && now - lastFinalAt > 20_000) {
+                app.suhani.AppLog.i(TAG, "stale turn buffer dropped: ${turnBuffer.toString().take(60)}")
+                turnBuffer.setLength(0)
+            }
+            lastFinalAt = now
+            turnBuffer.append(' ').append(text)
+        }
         listener.onCaption(text)
+        if (pendingHoldFire) {
+            // She released the orb before this final landed - it completes her turn.
+            pendingHoldFire = false
+            if (state == State.MUTED || state == State.LISTENING) {
+                fire()
+                return
+            }
+        }
         when (state) {
             // ALWAYS (re)schedule on a final: Saaras emits END_SPEECH before the
             // transcript, so the END_SPEECH-time schedule can find an empty
@@ -363,7 +451,7 @@ class ConversationEngine(
                 val trimmedReply = reply.trim()
                 val malformedToolJson = trimmedReply.startsWith("{") && trimmedReply.contains("\"name\"")
                 if (malformedToolJson && !trimmedReply.contains("end_conversation")) {
-                    Log.w(TAG, "malformed tool-call text - retrying turn: ${trimmedReply.take(80)}")
+                    app.suhani.AppLog.w(TAG, "malformed tool-call text - retrying turn: ${trimmedReply.take(80)}")
                     blankFires++
                     setState(State.LISTENING)
                     if (blankFires >= 2) {
@@ -382,12 +470,19 @@ class ConversationEngine(
                     // the session ends itself instead of listening forever.
                     sessionEnding = true
                     speakText = reply.replace("[बंद]", "").replace("[band]", "").trim()
-                    Log.i(TAG, "hang-up requested by conversation")
+                    app.suhani.AppLog.i(TAG, "hang-up requested by conversation")
                     if (speakText.isBlank() || speakText.startsWith("{")) speakText = "ठीक है जी, नमस्ते!"
                 }
                 // Commit point: the turn is confirmed, the buffer starts fresh.
                 synchronized(turnBuffer) { turnBuffer.setLength(0) }
-                Log.i(TAG, "turn: brain=${tBrain - t0}ms early=${earlyText != null} writes=${brain.lastRunWrites}")
+                app.suhani.AppLog.i(TAG, "turn: brain=${tBrain - t0}ms early=${earlyText != null} writes=${brain.lastRunWrites}")
+                if (brain.lastRunWrites > 0) {
+                    // A write may have created a reminder - synth its voice
+                    // line and arm the exact alarm while she hears the reply.
+                    scope.launch(Dispatchers.IO) {
+                        runCatching { ReminderScheduler.sync(appContext) }
+                    }
+                }
                 listener.onCaption(speakText)
 
                 val et = earlyText
@@ -452,10 +547,24 @@ class ConversationEngine(
                 setState(State.LISTENING)
                 scheduleFire()
             } catch (e: Exception) {
-                Log.e(TAG, "turn failed", e)
+                app.suhani.AppLog.e(TAG, "turn failed", e)
                 earlyHandle?.stop()
                 streamHandle = null
-                runCatching { speak(speech.fillerPcm(Speech.ERROR_LINE)) }
+                // A hard-failed turn must not leave her words in the buffer -
+                // the next question would get GLUED to them and the model
+                // answers a nonsense composite ("random replies").
+                synchronized(turnBuffer) { turnBuffer.setLength(0) }
+                // Say WHAT is wrong - a 402 loop once cost a debugging session.
+                val line = when {
+                    e.message?.contains("http 402") == true -> Speech.ERROR_CREDITS
+                    e.message?.contains("http 401") == true ||
+                        e.message?.contains("http 403") == true -> Speech.ERROR_KEY
+                    else -> Speech.ERROR_LINE
+                }
+                // Surface the real cause on screen - debugging by voice alone
+                // has cost us twice now.
+                listener.onCaption("⚠ ${e.javaClass.simpleName}: ${e.message?.take(140) ?: "no message"}")
+                runCatching { speak(speech.fillerPcm(line)) }
                 setState(State.LISTENING)
             }
         }

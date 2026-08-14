@@ -28,6 +28,9 @@ class SuhaniApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppLog.init(this)
+        AppLog.i("suhani.app", "app started")
+        Thread { runCatching { app.suhani.voice.ReminderScheduler.sync(this) } }.start()
         val now = ZonedDateTime.now(Ledger.IST)
         var next = now.with(LocalTime.of(8, 0))
         if (!next.isAfter(now)) next = next.plusDays(1)
@@ -68,15 +71,22 @@ class BriefingWorker(context: Context, params: WorkerParameters) : Worker(contex
             @Suppress("UNCHECKED_CAST")
             val today = b["due_today"] as List<Map<String, Any?>>
             @Suppress("UNCHECKED_CAST")
+            val tomorrow = b["due_tomorrow"] as List<Map<String, Any?>>
+            @Suppress("UNCHECKED_CAST")
             val overdue = b["overdue"] as List<Map<String, Any?>>
-            if (today.isEmpty() && overdue.isEmpty()) return Result.success()
+            if (today.isEmpty() && tomorrow.isEmpty() && overdue.isEmpty()) return Result.success()
             val body = buildString {
                 if (today.isNotEmpty()) {
                     append("Today: ")
                     append(today.joinToString(", ") { "${it["client_name"]} - ${it["garment"]}" })
                 }
+                if (tomorrow.isNotEmpty()) {
+                    if (isNotEmpty()) append("\n")
+                    append("Tomorrow: ")
+                    append(tomorrow.joinToString(", ") { "${it["client_name"]} - ${it["garment"]}" })
+                }
                 if (overdue.isNotEmpty()) {
-                    if (isNotEmpty()) append("  |  ")
+                    if (isNotEmpty()) append("\n")
                     append("Late: ${overdue.size}")
                 }
             }
@@ -84,13 +94,19 @@ class BriefingWorker(context: Context, params: WorkerParameters) : Worker(contex
             nm.createNotificationChannel(
                 NotificationChannel("suhani_reminders", "Daily briefing", NotificationManager.IMPORTANCE_DEFAULT),
             )
+            val open = android.app.PendingIntent.getActivity(
+                applicationContext, 0,
+                android.content.Intent(applicationContext, app.suhani.voice.VoiceActivity::class.java),
+                android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
             nm.notify(
                 2,
                 NotificationCompat.Builder(applicationContext, "suhani_reminders")
                     .setContentTitle("Suhani - today's work")
-                    .setContentText(body)
+                    .setContentText(body.replace('\n', ' '))
                     .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                     .setSmallIcon(app.suhani.spikes.R.drawable.ic_launcher_monochrome)
+                    .setContentIntent(open)
                     .setAutoCancel(true)
                     .build(),
             )
